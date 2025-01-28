@@ -33,6 +33,15 @@
 </template>
 
 <script seutp>
-import { defineProps, }
+import { defineProps, ref} from 'vue';
+
+defineProps({
+    limit: Number,
+    showButton: {
+        type: Boolean,
+        default: false,
+    },
+})
+
 
 </script>

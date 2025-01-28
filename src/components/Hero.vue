@@ -7,7 +7,7 @@
           <h1
             class="text-4xl font-extrabold text-white sm:text-5xl md:text-6xl"
           >
-            {{ title }}
+            {{ title }} {{ subTitle }}
           </h1>
           <p class="my-4 text-xl text-white">
             Find the Vue job that fits your skills and needs
@@ -24,6 +24,9 @@ defileProps({
     title: {
         type: String,
         default: 'TEST'
+    },
+    subTitle: {
+      type: String
     }
 })
 

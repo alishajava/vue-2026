@@ -37,6 +37,9 @@
   </nav>
 </template>
 <script setup>
-    import logo from '@/assets/img/logo.png'
+import { RouterLink, useRoute } from 'vue-router'
+import logo from '@/assets/img/logo.png'
+
+
 
 </script>

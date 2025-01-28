@@ -16,6 +16,6 @@ import jobData from '@/jobs.json'
 import { ref, defineProps } from 'vue';
 
 const jobs = ref(jobData);
-
+console.log(jobs.value);
 
 </script>
