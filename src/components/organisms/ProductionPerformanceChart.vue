@@ -89,7 +89,7 @@ const chartData = computed(() => {
         order: 3,
         yAxisID: 'y',
         datalabels: buildValueLabelConfig(data.partA.target, {
-          valueColor: '#fcfcfb',
+          valueColor: CHART_TEXT.primary,
           percentColor: CHART_TEXT.secondary,
           valueAnchor: 'center',
           valueAlign: 'center',
@@ -106,7 +106,7 @@ const chartData = computed(() => {
         order: 3,
         yAxisID: 'y',
         datalabels: buildValueLabelConfig(data.partB.target, {
-          valueColor: '#fcfcfb',
+          valueColor: CHART_TEXT.primary,
           percentColor: CHART_TEXT.secondary,
           valueAnchor: 'center',
           valueAlign: 'center',
