@@ -19,6 +19,17 @@ export const CHART_TEXT = {
 
 export const TARGET_DASH = [6, 4]
 
+/**
+ * 하단 라인 현황 그리드의 가동율 셀 배색 (양호/주의/위험).
+ * 기존의 원색 신호등 배색(순수 red/green/yellow) 대신, 위 categorical 팔레트와
+ * 같은 톤 계열의 차분한 색으로 맞춰 전체 디자인과 어울리게 한다.
+ */
+export const UTILIZATION_STATUS_COLORS = {
+  good: '#1baf7a', // SERIES_COLORS.total과 동일 계열 (aqua-green)
+  warning: '#c98a1f', // 차분한 amber
+  critical: '#c4574a', // 차분한 terracotta
+}
+
 /** hex -> "r, g, b" 문자열 (막대 배경색 투명도 조절용) */
 export function hexToRgb(hex) {
   const parsed = hex.replace('#', '')

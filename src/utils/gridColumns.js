@@ -3,6 +3,7 @@
  * 부품A/부품B 그리드 두 곳에서 동일한 구조(라인 / 목표 / 가동율 그룹)를 재사용한다.
  */
 import { getRecentMonths } from '../mock/productionData'
+import { UTILIZATION_STATUS_COLORS, hexToRgb } from '../charts/chartTheme'
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 
@@ -17,11 +18,11 @@ function utilizationCellStyle(params) {
 
   let backgroundColor
   if (value >= 90) {
-    backgroundColor = 'rgba(12, 163, 12, 0.14)' // good
+    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.good)}, 0.16)`
   } else if (value >= 80) {
-    backgroundColor = 'rgba(250, 178, 25, 0.22)' // warning
+    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.warning)}, 0.2)`
   } else {
-    backgroundColor = 'rgba(208, 59, 59, 0.16)' // critical
+    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.critical)}, 0.16)`
   }
 
   return {

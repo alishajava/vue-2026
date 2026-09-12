@@ -130,11 +130,32 @@ const chartOptions = computed(() => ({
     legend: {
       position: 'bottom',
       labels: {
+        // 기본 레전드는 막대/선 구분 없이 전부 같은 점(box 또는 point) 모양으로
+        // 그려서, 실적(막대)·실선(합계)·점선(목표)이 레전드만 봐서는 구분되지
+        // 않았다. usePointStyle + pointStyleWidth(Chart.js 4의 "wide point
+        // style" 옵션)를 켜고, generateLabels에서 데이터셋별로 pointStyle을
+        // 지정해 막대는 사각형, 선은 실제 borderDash를 반영한 선으로 그린다.
         usePointStyle: true,
-        boxWidth: 8,
+        pointStyleWidth: 24,
         boxHeight: 8,
         padding: 16,
         color: CHART_TEXT.secondary,
+        generateLabels(chart) {
+          return chart.data.datasets.map((dataset, index) => {
+            const isBar = dataset.type === 'bar'
+            const color = isBar ? dataset.backgroundColor : dataset.borderColor
+            return {
+              text: dataset.label,
+              datasetIndex: index,
+              hidden: !chart.isDatasetVisible(index),
+              fillStyle: color,
+              strokeStyle: color,
+              lineWidth: isBar ? 0 : (dataset.borderWidth ?? 2),
+              lineDash: isBar ? [] : (dataset.borderDash ?? []),
+              pointStyle: isBar ? 'rect' : 'line',
+            }
+          })
+        },
       },
     },
     tooltip: {
