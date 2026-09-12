@@ -26,6 +26,7 @@ import {
   Title,
   Filler,
 } from 'chart.js'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
 
 Chart.register(
   BarController,
@@ -39,6 +40,7 @@ Chart.register(
   Tooltip,
   Title,
   Filler,
+  ChartDataLabels,
 )
 
 // 전역 기본 옵션 (폰트 등 공통 톤 통일)
@@ -46,6 +48,9 @@ Chart.defaults.font.family =
   "'Pretendard', system-ui, -apple-system, 'Segoe UI', sans-serif"
 Chart.defaults.color = '#52514e' // text-secondary
 Chart.defaults.plugins.legend.labels.usePointStyle = true
+// datalabels는 전역 등록되면 모든 데이터셋에 기본으로 그려지므로, 기본값은 꺼두고
+// 값 라벨이 필요한 데이터셋(막대)에서만 개별적으로 켠다.
+Chart.defaults.plugins.datalabels.display = false
 
 export { Chart }
 export default Chart

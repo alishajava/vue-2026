@@ -31,6 +31,21 @@ const props = defineProps({
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 
+// 실적 막대마다 값을 표시하는 datalabels 설정 (부품A/B 실적 막대에서만 켠다).
+// 막대 폭이 24px로 좁아서 "1,202" 같은 4자리 숫자는 막대 안(anchor: center)에
+// 넣으면 옆으로 삐져나와 옆 막대/흰 배경 위에서 잘려 보인다. dataviz 가이드대로
+// 안에 안 들어가는 라벨은 막대 끝(위)으로 옮긴다 - 색도 흰 글자 대신 막대 위
+// 빈 공간에 맞춰 기본 잉크색을 쓴다.
+const barValueLabel = {
+  display: true,
+  color: CHART_TEXT.secondary,
+  font: { size: 10, weight: '600' },
+  formatter: (value) => numberFormatter.format(value),
+  anchor: 'end',
+  align: 'top',
+  offset: 2,
+}
+
 const chartData = computed(() => {
   const data = getChartData(props.year, props.factoryCode)
   const labels = data.months.map((m) => `${m}월`)
@@ -48,6 +63,7 @@ const chartData = computed(() => {
         maxBarThickness: 24,
         order: 3,
         yAxisID: 'y',
+        datalabels: barValueLabel,
       },
       {
         type: 'bar',
@@ -59,6 +75,7 @@ const chartData = computed(() => {
         maxBarThickness: 24,
         order: 3,
         yAxisID: 'y',
+        datalabels: barValueLabel,
       },
       {
         type: 'line',
@@ -172,6 +189,11 @@ const chartOptions = computed(() => ({
     x: {
       grid: { display: false },
       ticks: { color: CHART_TEXT.muted },
+      // 기본값(barPercentage 0.9)은 부품A/B 막대 사이에 눈에 띄는 틈을 남긴다.
+      // 1에 가깝게 올려서 같은 달의 두 막대가 붙어 보이게 하고, categoryPercentage로
+      // 달과 달 사이 그룹 간격은 유지한다.
+      categoryPercentage: 0.85,
+      barPercentage: 0.98,
     },
     y: {
       // 단일 y축: 실적/목표/합계 모두 같은 단위(생산 수량)이므로 축을 하나만 사용한다.
