@@ -61,11 +61,32 @@ const defaultColDef = {
 <style scoped>
 .part-line-grid {
   width: 100%;
+  /* 세로 구분선 색상 (차트 gridline과 동일한 hairline 톤) */
+  --line-grid-divider: #e1e0d9;
 }
 
 /* '가동율' 그룹 헤더(colspan)를 살짝 강조 */
 .part-line-grid :deep(.util-group-header) {
   font-weight: 700;
   background-color: #f3f2ee;
+}
+
+/*
+ * ag-theme-alpine은 기본적으로 헤더 셀에는 옅은 구분선을 주지만 본문(.ag-cell)에는
+ * 세로 구분선을 넣지 않는다. 그러다 보니 헤더의 구분선이 본문까지 이어지지 않고
+ * 중간에 끊긴 것처럼 보이고, '라인'-'목표' 사이는 아예 구분선이 없었다.
+ * 헤더 1행(그룹)·헤더 2행(리프)·본문 모두에 동일한 세로선을 넣어 위아래가 하나로
+ * 이어지도록 통일한다. 각 행의 마지막 칸은 오른쪽 테두리를 지운다.
+ */
+.part-line-grid :deep(.ag-header-group-cell),
+.part-line-grid :deep(.ag-header-cell),
+.part-line-grid :deep(.ag-cell) {
+  border-right: 1px solid var(--line-grid-divider);
+}
+
+.part-line-grid :deep(.ag-header-row .ag-header-group-cell:last-child),
+.part-line-grid :deep(.ag-header-row .ag-header-cell:last-child),
+.part-line-grid :deep(.ag-row .ag-cell:last-child) {
+  border-right: none;
 }
 </style>
