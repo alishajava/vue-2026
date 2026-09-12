@@ -63,6 +63,14 @@ const defaultColDef = {
   width: 100%;
   /* 세로 구분선 색상 (차트 gridline과 동일한 hairline 톤) */
   --line-grid-divider: #e1e0d9;
+  /*
+   * ag-grid는 resizable 컬럼 경계마다 별도의 리사이즈 핸들 막대(::after)를 그린다.
+   * '라인'/'목표'처럼 그룹이 없는(span-height) 컬럼은 이 막대가 헤더 높이의 거의
+   * 전체를 차지해서, 바로 아래 추가한 border-right 구분선과 나란히 겹쳐 보이며
+   * "선이 두 개 겹친 것처럼" 보이는 원인이 된다. 드래그로 리사이즈하는 기능 자체는
+   * 유지하고, 막대만 숨겨서 구분선 하나로만 보이게 한다.
+   */
+  --ag-header-column-resize-handle-display: none;
 }
 
 /* '가동율' 그룹 헤더(colspan)를 살짝 강조 */
