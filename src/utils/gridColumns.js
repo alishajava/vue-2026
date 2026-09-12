@@ -3,35 +3,9 @@
  * 부품A/부품B 그리드 두 곳에서 동일한 구조(라인 / 목표 / 가동율 그룹)를 재사용한다.
  */
 import { getRecentMonths } from '../mock/productionData'
-import { UTILIZATION_STATUS_COLORS, hexToRgb } from '../charts/chartTheme'
+import UtilizationBadge from '../components/atoms/UtilizationBadge.vue'
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
-
-/**
- * 가동율 값에 따라 배경색을 다르게 준다 (양호/주의/위험).
- * 색상은 보조 채널일 뿐이며, 숫자(%) 값 자체가 항상 함께 표시되므로 색상에만
- * 의존하지 않는다. 텍스트는 항상 기본 잉크색을 유지해 대비를 충분히 확보한다.
- */
-function utilizationCellStyle(params) {
-  const value = params.value
-  if (value == null) return null
-
-  let backgroundColor
-  if (value >= 90) {
-    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.good)}, 0.16)`
-  } else if (value >= 80) {
-    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.warning)}, 0.2)`
-  } else {
-    backgroundColor = `rgba(${hexToRgb(UTILIZATION_STATUS_COLORS.critical)}, 0.16)`
-  }
-
-  return {
-    backgroundColor,
-    color: '#0b0b0b',
-    fontWeight: 600,
-    textAlign: 'right',
-  }
-}
 
 /**
  * @returns ag-grid columnDefs: 라인 / 목표 / 가동율(그룹, 최근 3개월 하위 컬럼 colspan)
@@ -67,7 +41,7 @@ export function buildLineGridColumns() {
         minWidth: 80,
         type: 'rightAligned',
         valueFormatter: (p) => (p.value == null ? '' : `${p.value}%`),
-        cellStyle: utilizationCellStyle,
+        cellRenderer: UtilizationBadge,
       })),
     },
   ]

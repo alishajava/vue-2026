@@ -20,17 +20,26 @@ export const CHART_TEXT = {
 export const TARGET_DASH = [6, 4]
 
 /**
- * 하단 라인 현황 그리드의 가동율 셀 배색 (양호/주의/위험).
- * dataviz 가이드의 "status palette" (검증된 고정 상태 색상 4단계: good/warning/
- * serious/critical)에서 가져온다. 이 색은 SERIES_COLORS(categorical, 부품/계열
- * 구분용)와는 별도로 예약된 색이라 - 상태 색을 계열 색과 겹쳐 쓰면 "이 색이 부품을
- * 가리키는지 상태를 가리키는지" 헷갈리게 된다. 3단계만 쓰므로 good/warning/
- * critical만 사용하고 중간 단계(serious)는 생략한다.
+ * 하단 라인 현황 그리드의 가동율 배지 배색 (양호/주의/위험).
+ * dataviz 가이드의 "status palette" (검증된 고정 상태 색상: good/warning/
+ * critical)를 뼈대로 하되, 셀 전체를 칠하는 대신 Notion/Linear류의 "칩(pill
+ * badge)"로 표시한다 - 옅은 배경 + 진한 텍스트 조합. 텍스트 색은 각 배경 위에서
+ * WCAG 4.5:1 이상(validate_palette.js의 contrast()로 확인: 4.71 / 4.88 / 5.67)을
+ * 만족하도록 골랐다. 이 색은 SERIES_COLORS(categorical, 부품/계열 구분용)와는
+ * 별도로 예약된 색이라 - 상태 색을 계열 색과 겹쳐 쓰면 "이 색이 부품을 가리키는지
+ * 상태를 가리키는지" 헷갈리게 된다.
  */
-export const UTILIZATION_STATUS_COLORS = {
-  good: '#0ca30c',
-  warning: '#fab219',
-  critical: '#d03b3b',
+export const UTILIZATION_BADGE_COLORS = {
+  good: { background: '#eafbea', text: '#1a7f37' },
+  warning: { background: '#fef6e6', text: '#946200' },
+  critical: { background: '#fdecec', text: '#b3281f' },
+}
+
+/** 가동율 값(%) -> 상태 등급. 배지 색상과 임계값(90/80)을 한 곳에서 관리한다. */
+export function getUtilizationStatus(value) {
+  if (value >= 90) return 'good'
+  if (value >= 80) return 'warning'
+  return 'critical'
 }
 
 /** hex -> "r, g, b" 문자열 (막대 배경색 투명도 조절용) */
