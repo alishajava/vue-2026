@@ -31,19 +31,44 @@ const props = defineProps({
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 
-// 실적 막대마다 값을 표시하는 datalabels 설정 (부품A/B 실적 막대에서만 켠다).
-// 막대 폭이 24px로 좁아서 "1,202" 같은 4자리 숫자는 막대 안(anchor: center)에
-// 넣으면 옆으로 삐져나와 옆 막대/흰 배경 위에서 잘려 보인다. dataviz 가이드대로
-// 안에 안 들어가는 라벨은 막대 끝(위)으로 옮긴다 - 색도 흰 글자 대신 막대 위
-// 빈 공간에 맞춰 기본 잉크색을 쓴다.
-const barValueLabel = {
-  display: true,
-  color: CHART_TEXT.secondary,
-  font: { size: 10, weight: '600' },
-  formatter: (value) => numberFormatter.format(value),
-  anchor: 'end',
-  align: 'top',
-  offset: 2,
+/**
+ * 실적(막대/합계 라인) 데이터포인트에 "값 + 목표 대비 달성률(%)"을 함께 표시하는
+ * datalabels 설정을 만든다. targets는 같은 인덱스의 목표값 배열 - 그 값과
+ * 짝지어 달성률을 계산한다 (목표가 없으면 % 라벨은 그리지 않는다).
+ *
+ * 값/퍼센트를 한 라벨에 두 줄로 합치면(예: 막대 중앙) 막대 폭(24px)보다 텍스트가
+ * 넓어서 두 줄이 겹쳐 보인다. 그래서 datalabels의 다중 라벨 기능(`labels`)으로
+ * 값은 valuePos(막대는 중앙)에, %는 항상 마크 바깥(위)에 작게 따로 그린다.
+ */
+function buildValueLabelConfig(
+  targets,
+  { valueColor, percentColor, valueAnchor, valueAlign, valueOffset = 0, percentOffset = 2 },
+) {
+  return {
+    labels: {
+      value: {
+        display: true,
+        color: valueColor,
+        font: { size: 9, weight: '600' },
+        anchor: valueAnchor,
+        align: valueAlign,
+        offset: valueOffset,
+        formatter: (value) => `${numberFormatter.format(value)}개`,
+      },
+      percent: {
+        display: (ctx) => targets[ctx.dataIndex] != null,
+        color: percentColor,
+        font: { size: 8, weight: '600' },
+        anchor: 'end',
+        align: 'top',
+        offset: percentOffset,
+        formatter: (value, ctx) => {
+          const target = targets[ctx.dataIndex]
+          return `(${Math.round((value / target) * 100)}%)`
+        },
+      },
+    },
+  }
 }
 
 const chartData = computed(() => {
@@ -63,7 +88,12 @@ const chartData = computed(() => {
         maxBarThickness: 24,
         order: 3,
         yAxisID: 'y',
-        datalabels: barValueLabel,
+        datalabels: buildValueLabelConfig(data.partA.target, {
+          valueColor: '#fcfcfb',
+          percentColor: CHART_TEXT.secondary,
+          valueAnchor: 'center',
+          valueAlign: 'center',
+        }),
       },
       {
         type: 'bar',
@@ -75,7 +105,12 @@ const chartData = computed(() => {
         maxBarThickness: 24,
         order: 3,
         yAxisID: 'y',
-        datalabels: barValueLabel,
+        datalabels: buildValueLabelConfig(data.partB.target, {
+          valueColor: '#fcfcfb',
+          percentColor: CHART_TEXT.secondary,
+          valueAnchor: 'center',
+          valueAlign: 'center',
+        }),
       },
       {
         type: 'line',
@@ -92,6 +127,15 @@ const chartData = computed(() => {
         tension: 0.3,
         order: 1,
         yAxisID: 'y',
+        datalabels: buildValueLabelConfig(data.total.target, {
+          valueColor: CHART_TEXT.secondary,
+          percentColor: CHART_TEXT.muted,
+          valueAnchor: 'end',
+          valueAlign: 'top',
+          valueOffset: 4,
+          // 값 라벨과 같은 top 방향이라 겹치지 않게 %는 그보다 더 위로 띄운다.
+          percentOffset: 15,
+        }),
       },
       {
         type: 'line',
