@@ -2,7 +2,7 @@ name: Deploy factory dashboard to GitHub Pages
 
 on:
   push:
-    branches: [factory-dashboard]
+    branches: [factory-dashboard, main]
   workflow_dispatch:
 
 permissions:
