@@ -21,13 +21,16 @@ export const TARGET_DASH = [6, 4]
 
 /**
  * 하단 라인 현황 그리드의 가동율 셀 배색 (양호/주의/위험).
- * 기존의 원색 신호등 배색(순수 red/green/yellow) 대신, 위 categorical 팔레트와
- * 같은 톤 계열의 차분한 색으로 맞춰 전체 디자인과 어울리게 한다.
+ * dataviz 가이드의 "status palette" (검증된 고정 상태 색상 4단계: good/warning/
+ * serious/critical)에서 가져온다. 이 색은 SERIES_COLORS(categorical, 부품/계열
+ * 구분용)와는 별도로 예약된 색이라 - 상태 색을 계열 색과 겹쳐 쓰면 "이 색이 부품을
+ * 가리키는지 상태를 가리키는지" 헷갈리게 된다. 3단계만 쓰므로 good/warning/
+ * critical만 사용하고 중간 단계(serious)는 생략한다.
  */
 export const UTILIZATION_STATUS_COLORS = {
-  good: '#1baf7a', // SERIES_COLORS.total과 동일 계열 (aqua-green)
-  warning: '#c98a1f', // 차분한 amber
-  critical: '#c4574a', // 차분한 terracotta
+  good: '#0ca30c',
+  warning: '#fab219',
+  critical: '#d03b3b',
 }
 
 /** hex -> "r, g, b" 문자열 (막대 배경색 투명도 조절용) */
