@@ -71,6 +71,41 @@ function buildValueLabelConfig(
   }
 }
 
+/**
+ * 레전드에서 "실선 + 가운데 점" 아이콘을 그리기 위한 캔버스를 만든다. Chart.js의
+ * pointStyle은 미리 정의된 도형(line/rect/circle 등) 하나만 고를 수 있어서 "선
+ * 위에 점"처럼 합성된 모양은 지원하지 않는다 - 대신 pointStyle에 HTMLCanvasElement를
+ * 넘기면 그 이미지를 그대로 그려준다는 점을 이용해 직접 그려서 넘긴다.
+ * (부품합계 실적처럼 실제 차트에 점 마커가 있는 선만 이 아이콘을 쓰고, 점이 없는
+ * 목표 점선들은 기존처럼 pointStyle: 'line'을 그대로 쓴다.)
+ */
+function createLineDotIcon(lineColor, dotColor, ringColor) {
+  const width = 24
+  const height = 10
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  const midY = height / 2
+
+  ctx.strokeStyle = lineColor
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(0, midY)
+  ctx.lineTo(width, midY)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(width / 2, midY, 3.5, 0, Math.PI * 2)
+  ctx.fillStyle = dotColor
+  ctx.fill()
+  ctx.lineWidth = 1.5
+  ctx.strokeStyle = ringColor
+  ctx.stroke()
+
+  return canvas
+}
+
 const chartData = computed(() => {
   const data = getChartData(props.year, props.factoryCode)
   const labels = data.months.map((m) => `${m}월`)
@@ -205,6 +240,7 @@ const chartOptions = computed(() => ({
           return chart.data.datasets.map((dataset, index) => {
             const isBar = dataset.type === 'bar'
             const color = isBar ? dataset.backgroundColor : dataset.borderColor
+            const hasPoints = !isBar && dataset.pointRadius > 0
             return {
               text: dataset.label,
               datasetIndex: index,
@@ -213,7 +249,11 @@ const chartOptions = computed(() => ({
               strokeStyle: color,
               lineWidth: isBar ? 0 : (dataset.borderWidth ?? 2),
               lineDash: isBar ? [] : (dataset.borderDash ?? []),
-              pointStyle: isBar ? 'rect' : 'line',
+              pointStyle: isBar
+                ? 'rect'
+                : hasPoints
+                  ? createLineDotIcon(dataset.borderColor, dataset.pointBackgroundColor, dataset.pointBorderColor)
+                  : 'line',
             }
           })
         },
