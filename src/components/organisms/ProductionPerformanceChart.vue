@@ -80,7 +80,7 @@ function buildValueLabelConfig(
  * 목표 점선들은 기존처럼 pointStyle: 'line'을 그대로 쓴다.)
  */
 function createLineDotIcon(lineColor, dotColor, ringColor) {
-  const width = 24
+  const width = 30
   const height = 10
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -232,7 +232,7 @@ const chartOptions = computed(() => ({
         // style" 옵션)를 켜고, generateLabels에서 데이터셋별로 pointStyle을
         // 지정해 막대는 사각형, 선은 실제 borderDash를 반영한 선으로 그린다.
         usePointStyle: true,
-        pointStyleWidth: 24,
+        pointStyleWidth: 30,
         boxHeight: 8,
         padding: 16,
         color: CHART_TEXT.secondary,
