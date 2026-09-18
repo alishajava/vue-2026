@@ -14,7 +14,7 @@
 import { computed } from 'vue'
 import { Chart as ChartComponent } from 'vue-chartjs'
 import '../../charts/chartRegister'
-import { SERIES_COLORS, CHART_TEXT, TARGET_DASH, hexToRgb } from '../../charts/chartTheme'
+import { SERIES_COLORS, CHART_TEXT, TARGET_DASH, LEGEND_TARGET_DASH, hexToRgb } from '../../charts/chartTheme'
 import { getChartData } from '../../mock/productionData'
 import BaseCard from '../atoms/BaseCard.vue'
 
@@ -248,7 +248,9 @@ const chartOptions = computed(() => ({
               fillStyle: color,
               strokeStyle: color,
               lineWidth: isBar ? 0 : (dataset.borderWidth ?? 2),
-              lineDash: isBar ? [] : (dataset.borderDash ?? []),
+              // 차트 실선의 dataset.borderDash를 그대로 쓰면 작은 레전드 아이콘
+              // 안에서 너무 촘촘해 보여서, 점선 항목은 레전드 전용 간격을 쓴다.
+              lineDash: isBar ? [] : dataset.borderDash ? LEGEND_TARGET_DASH : [],
               pointStyle: isBar
                 ? 'rect'
                 : hasPoints
