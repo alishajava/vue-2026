@@ -19,6 +19,11 @@ export const CHART_TEXT = {
 
 export const TARGET_DASH = [6, 4]
 
+// 레전드 아이콘(가로 30px)에 TARGET_DASH([6,4])를 그대로 쓰면 한 아이콘 안에
+// 패턴이 3번 넘게 반복돼서 점선이 아니라 촘촘한 줄무늬처럼 보인다. 차트 실선은
+// 그대로 두고, 레전드 아이콘에서만 더 성긴 간격을 쓴다.
+export const LEGEND_TARGET_DASH = [9, 5]
+
 /**
  * 하단 라인 현황 그리드의 가동율 배지 배색 (양호/주의/위험).
  * dataviz 가이드의 "status palette" (검증된 고정 상태 색상: good/warning/

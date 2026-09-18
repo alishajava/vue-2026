@@ -14,7 +14,7 @@
 import { computed } from 'vue'
 import { Chart as ChartComponent } from 'vue-chartjs'
 import '../../charts/chartRegister'
-import { SERIES_COLORS, CHART_TEXT, TARGET_DASH, hexToRgb } from '../../charts/chartTheme'
+import { SERIES_COLORS, CHART_TEXT, TARGET_DASH, LEGEND_TARGET_DASH, hexToRgb } from '../../charts/chartTheme'
 import { getChartData } from '../../mock/productionData'
 import BaseCard from '../atoms/BaseCard.vue'
 
@@ -80,7 +80,7 @@ function buildValueLabelConfig(
  * 목표 점선들은 기존처럼 pointStyle: 'line'을 그대로 쓴다.)
  */
 function createLineDotIcon(lineColor, dotColor, ringColor) {
-  const width = 24
+  const width = 30
   const height = 10
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -232,7 +232,7 @@ const chartOptions = computed(() => ({
         // style" 옵션)를 켜고, generateLabels에서 데이터셋별로 pointStyle을
         // 지정해 막대는 사각형, 선은 실제 borderDash를 반영한 선으로 그린다.
         usePointStyle: true,
-        pointStyleWidth: 24,
+        pointStyleWidth: 30,
         boxHeight: 8,
         padding: 16,
         color: CHART_TEXT.secondary,
@@ -248,7 +248,9 @@ const chartOptions = computed(() => ({
               fillStyle: color,
               strokeStyle: color,
               lineWidth: isBar ? 0 : (dataset.borderWidth ?? 2),
-              lineDash: isBar ? [] : (dataset.borderDash ?? []),
+              // 차트 실선의 dataset.borderDash를 그대로 쓰면 작은 레전드 아이콘
+              // 안에서 너무 촘촘해 보여서, 점선 항목은 레전드 전용 간격을 쓴다.
+              lineDash: isBar ? [] : dataset.borderDash ? LEGEND_TARGET_DASH : [],
               pointStyle: isBar
                 ? 'rect'
                 : hasPoints
