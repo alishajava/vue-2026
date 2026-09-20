@@ -130,3 +130,17 @@ export function getLineGridRows(year, factoryCode, partCode) {
     return row
   })
 }
+
+/**
+ * 라인 하나의 최근 N개월 가동율 추이. 그리드의 "최근 3개월" 컬럼과 같은 시드 키를
+ * 써서, 겹치는 달은 항상 같은 값을 준다 (그리드에 보이는 3개월치와 드로어에서
+ * 보이는 6개월치가 서로 다른 값으로 안 보이게).
+ * @returns {{key:string, label:string, value:number}[]} 과거->현재 순
+ */
+export function getLineUtilizationHistory(factoryCode, partCode, lineId, count = 6) {
+  return getRecentMonths(count).map((rm) => ({
+    key: rm.key,
+    label: rm.label,
+    value: seededRange(`util-${factoryCode}-${partCode}-${lineId}-${rm.key}`, 72, 99, 1),
+  }))
+}
