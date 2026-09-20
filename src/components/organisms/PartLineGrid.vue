@@ -142,6 +142,7 @@ const trendChartOptions = {
     :title="selectedLine ? `${partName} · ${selectedLine.lineName} 상세` : ''"
     placement="right"
     width="420"
+    destroy-on-close
   >
     <template v-if="selectedLine">
       <div class="line-detail__meta">
