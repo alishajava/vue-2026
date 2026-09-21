@@ -11,5 +11,6 @@ import './charts/chartRegister'
 
 import './styles/global.css'
 import App from './App.vue'
+import router from './router'
 
-createApp(App).use(Antd).mount('#app')
+createApp(App).use(Antd).use(router).mount('#app')

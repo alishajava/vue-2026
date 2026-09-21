@@ -1,7 +1,5 @@
-<script setup>
-import ProductionDashboardPage from './components/pages/ProductionDashboardPage.vue'
-</script>
+<script setup></script>
 
 <template>
-  <ProductionDashboardPage />
+  <router-view />
 </template>

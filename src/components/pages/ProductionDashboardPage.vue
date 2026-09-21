@@ -30,6 +30,7 @@ const [partA, partB] = PARTS
         :years="YEARS"
         :factories="FACTORIES"
       />
+      <router-link class="production-dashboard-page__preview-link" to="/preview">문서 미리보기 →</router-link>
     </template>
 
     <template #chart>
@@ -55,3 +56,11 @@ const [partA, partB] = PARTS
     </template>
   </DashboardTemplate>
 </template>
+
+<style scoped>
+.production-dashboard-page__preview-link {
+  font-size: 13px;
+  color: #52514e;
+  white-space: nowrap;
+}
+</style>
