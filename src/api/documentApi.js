@@ -45,6 +45,21 @@ export async function deleteDocument(id) {
   await client.delete(`/api/documents/${id}`)
 }
 
+// 구버전 .ppt(바이너리 포맷)는 브라우저에서 파싱할 수 없어서, 서버(Apache POI)가
+// 슬라이드를 PNG로 변환해 내려준다. 둘 다 "data:image/png;base64,..." 문자열 배열을 반환한다.
+
+// 아직 저장 전(서버에 id가 없는) 파일을 즉석 변환할 때 사용.
+export async function convertToSlides({ fileBase64, fileType }) {
+  const { data } = await client.post('/api/documents/convert', { fileBase64, fileType })
+  return data
+}
+
+// 이미 저장된 문서를 변환할 때 사용 - 서버가 저장된 바이트를 그대로 변환한다.
+export async function fetchDocumentSlides(id) {
+  const { data } = await client.get(`/api/documents/${id}/slides`)
+  return data
+}
+
 // --- DocumentPreviewPage(단일 파일 미리보기)용 - 최소 필드만 저장/조회하는 얇은 래퍼 ---
 
 export async function saveDocument({ fileName, fileBase64 }) {

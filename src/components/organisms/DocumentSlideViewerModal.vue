@@ -21,6 +21,13 @@
  * 페이지 번호 캡션을 달아 클릭하면 우측 큰 미리보기의 page를 바꾼다. 우측/크게보기
  * 모두 같은 currentPage ref를 공유해서, 페이지 이동 시 버퍼를 다시 넘길 필요 없이
  * page prop만 반응형으로 바뀌면 된다(문서 자체는 처음 한 번만 파싱).
+ *
+ * [ppt(구버전)]
+ * 구버전 .ppt는 바이너리 OLE 포맷이라 브라우저에서 파싱할 방법이 없다. 클라이언트
+ * 라이브러리 대신, 부모(DocumentLibraryPage)가 서버(Apache POI)에게 슬라이드를
+ * PNG로 변환시켜 그 결과(data URL 배열)를 slideImages prop으로 그대로 넘겨준다.
+ * 여기서는 순수 <img> 태그로만 그리면 되고, pdf 쪽의 currentPage/totalPages를
+ * 그대로 재사용해서 이전/다음 상태를 공유한다.
  */
 import { ref, shallowRef, nextTick, watch, onBeforeUnmount } from 'vue'
 import { init as initPptxPreview } from 'pptx-preview'
@@ -39,15 +46,25 @@ const props = defineProps({
   },
   fileType: {
     type: String,
-    default: null, // 'pptx' | 'pdf'
+    default: null, // 'pptx' | 'pdf' | 'ppt'
   },
   fileBuffer: {
     type: ArrayBuffer,
     default: null,
   },
+  // fileType === 'ppt'일 때만 쓰인다 - 서버가 변환해준 "data:image/png;base64,..." 배열.
+  slideImages: {
+    type: Array,
+    default: () => [],
+  },
   loading: {
     type: Boolean,
     default: false,
+  },
+  // fileType === 'ppt'일 때, 서버 변환이 실패하면 부모가 채워서 내려준다.
+  error: {
+    type: String,
+    default: '',
   },
 })
 
@@ -82,15 +99,28 @@ watch(
       cleanupMain()
       return
     }
-    if (!props.fileBuffer) return
     loadError.value = ''
     currentPage.value = 1
+    if (props.fileType === 'ppt') {
+      // slideImages는 부모가 비동기로 채워서 내려준다 - watch(slideImages)에서 처리.
+      totalPages.value = props.slideImages?.length || 1
+      return
+    }
+    if (!props.fileBuffer) return
     await nextTick()
     if (props.fileType === 'pdf') {
       initPdfMain()
     } else {
       await initPptxMain()
     }
+  },
+)
+
+// ppt는 팝업이 열린 뒤 서버 변환이 끝나야 slideImages가 채워지므로, 별도로 지켜본다.
+watch(
+  () => props.slideImages,
+  (images) => {
+    if (props.fileType === 'ppt') totalPages.value = images?.length || 1
   },
 )
 
@@ -163,6 +193,9 @@ async function openEnlarge() {
   enlargeOpen.value = true
   loadError.value = ''
   await nextTick()
+
+  if (props.fileType === 'ppt') return // <img>가 currentPage를 그대로 반영하므로 별도 처리 불필요
+
   if (!props.fileBuffer) return
 
   if (props.fileType === 'pdf') {
@@ -259,6 +292,33 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <div v-else-if="fileType === 'ppt'" class="pptx-slide-viewer">
+        <div class="pptx-slide-viewer__list">
+          <img
+            v-for="(src, idx) in slideImages"
+            :key="idx"
+            :src="src"
+            class="ppt-slide-thumb"
+            :class="{ 'ppt-slide-thumb--active': idx + 1 === currentPage }"
+            @click="goToPage(idx + 1)"
+          />
+        </div>
+
+        <div class="pptx-slide-viewer__main">
+          <div class="pptx-slide-viewer__main-header">
+            <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
+            <span class="pptx-slide-viewer__main-actions">
+              <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
+              <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
+              <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+            </span>
+          </div>
+          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
+            <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
+          </div>
+        </div>
+      </div>
+
       <div v-else class="pptx-slide-viewer">
         <div ref="listContainer" class="pptx-slide-viewer__list" />
         <div class="pptx-slide-viewer__main">
@@ -270,7 +330,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <a-alert v-if="loadError" class="pptx-slide-viewer__alert" type="error" show-icon :message="loadError" />
+      <a-alert v-if="error || loadError" class="pptx-slide-viewer__alert" type="error" show-icon :message="error || loadError" />
     </a-spin>
   </a-modal>
 
@@ -292,6 +352,18 @@ onBeforeUnmount(() => {
       </div>
       <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
         <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="1100" />
+      </div>
+    </template>
+    <template v-else-if="fileType === 'ppt'">
+      <div class="pptx-slide-viewer__enlarge-header">
+        <span>{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
+        <span class="pptx-slide-viewer__main-actions">
+          <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
+          <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
+        </span>
+      </div>
+      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
+        <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
       </div>
     </template>
     <div v-else ref="enlargeContainer" class="pptx-slide-viewer__enlarge" />
@@ -380,5 +452,21 @@ onBeforeUnmount(() => {
   color: #1677ff;
   font-weight: 600;
   border-bottom-color: #1677ff;
+}
+.ppt-slide-thumb {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+.ppt-slide-thumb--active {
+  outline-color: #1677ff;
+}
+.ppt-slide-image {
+  max-width: 100%;
+  max-height: 100%;
 }
 </style>

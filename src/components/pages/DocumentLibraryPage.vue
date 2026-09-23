@@ -33,7 +33,14 @@ import FileAttachCell from '../atoms/FileAttachCell.vue'
 import RowActionsCell from '../atoms/RowActionsCell.vue'
 import DocumentSlideViewerModal from '../organisms/DocumentSlideViewerModal.vue'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
-import { listDocuments, createDocument, updateDocument, fetchDocumentFile } from '../../api/documentApi'
+import {
+  listDocuments,
+  createDocument,
+  updateDocument,
+  fetchDocumentFile,
+  convertToSlides,
+  fetchDocumentSlides,
+} from '../../api/documentApi'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',
@@ -48,7 +55,7 @@ function createEmptyRow() {
     id: null,
     title: '',
     fileName: '',
-    fileType: null, // 'pptx' | 'pdf'
+    fileType: null, // 'pptx' | 'pdf' | 'ppt'
     fileBuffer: null, // 아직 서버에 안 올라간 첨부 파일. 저장되면 비운다(메모리 절약).
     registrant: '',
     registeredAt: null,
@@ -226,7 +233,9 @@ const viewerOpen = ref(false)
 const viewerFileName = ref('')
 const viewerFileType = ref(null)
 const viewerFileBuffer = shallowRef(null)
+const viewerSlideImages = shallowRef([])
 const viewerLoading = ref(false)
+const viewerError = ref('')
 
 async function onCellClicked(event) {
   if (event.colDef.field !== 'title') return
@@ -236,17 +245,30 @@ async function onCellClicked(event) {
   viewerFileName.value = row.fileName
   viewerFileType.value = row.fileType
   viewerFileBuffer.value = null
+  viewerSlideImages.value = []
+  viewerError.value = ''
   viewerOpen.value = true
   viewerLoading.value = true
 
   try {
-    if (row.fileBuffer) {
+    if (row.fileType === 'ppt') {
+      // 구버전 .ppt는 브라우저에서 못 읽으므로 서버(Apache POI)가 PNG로 변환해준다.
+      if (row.fileBuffer) {
+        const fileBase64 = await arrayBufferToBase64(row.fileBuffer.slice(0))
+        viewerSlideImages.value = await convertToSlides({ fileBase64, fileType: 'ppt' })
+      } else if (row.id) {
+        viewerSlideImages.value = await fetchDocumentSlides(row.id)
+      }
+    } else if (row.fileBuffer) {
       viewerFileBuffer.value = row.fileBuffer.slice(0)
     } else if (row.id) {
       const base64 = await fetchDocumentFile(row.id)
       viewerFileBuffer.value = await base64ToArrayBuffer(base64)
     }
   } catch (err) {
+    if (row.fileType === 'ppt') {
+      viewerError.value = '.ppt 파일을 변환하지 못했습니다. (서버 변환 기능이 아직 준비되지 않았을 수 있습니다)'
+    }
     console.error(err)
   } finally {
     viewerLoading.value = false
@@ -291,7 +313,9 @@ async function onCellClicked(event) {
       :file-name="viewerFileName"
       :file-type="viewerFileType"
       :file-buffer="viewerFileBuffer"
+      :slide-images="viewerSlideImages"
       :loading="viewerLoading"
+      :error="viewerError"
     />
   </div>
 </template>

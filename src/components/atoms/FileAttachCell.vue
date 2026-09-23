@@ -32,8 +32,8 @@ async function onFileChange(event) {
   if (!file) return
 
   const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext !== 'pptx' && ext !== 'pdf') {
-    message.error('.pptx 또는 .pdf 파일만 첨부할 수 있습니다.')
+  if (ext !== 'pptx' && ext !== 'pdf' && ext !== 'ppt') {
+    message.error('.pptx, .pdf, .ppt 파일만 첨부할 수 있습니다.')
     return
   }
 
@@ -53,6 +53,6 @@ async function onFileChange(event) {
 <template>
   <span>
     <a-button size="small" @click="triggerSelect">파일선택</a-button>
-    <input ref="fileInput" type="file" accept=".pptx,.pdf" style="display: none" @change="onFileChange" />
+    <input ref="fileInput" type="file" accept=".pptx,.pdf,.ppt" style="display: none" @change="onFileChange" />
   </span>
 </template>
