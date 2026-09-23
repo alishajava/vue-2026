@@ -19,6 +19,8 @@ import VuePdfEmbed from 'vue-pdf-embed'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import BaseCard from '../atoms/BaseCard.vue'
+import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
+import { saveDocument, fetchDocument } from '../../api/documentApi'
 
 const PREVIEW_SIZE = { width: 480, height: 270 }
 const MODAL_SIZE = { width: 900, height: 506 }
@@ -45,9 +47,21 @@ const modalContainer = ref(null)
 let previewViewer = null
 let modalViewer = null
 
+// 서버 저장(업로드) 상태 - 미리보기는 클라이언트에서 즉시 되고, 저장은 별도로 진행된다.
+const savingDoc = ref(false)
+const saveError = ref('')
+const savedDocumentId = ref(null)
+
+// 저장된 문서 ID로 다시 불러오기
+const loadId = ref('')
+const loadingDoc = ref(false)
+const loadError = ref('')
+
 function resetPreviewState() {
   uploadError.value = ''
   previewError.value = ''
+  saveError.value = ''
+  savedDocumentId.value = null
   fileType.value = null
   fileName.value = ''
   pptxArrayBuffer.value = null
@@ -56,6 +70,20 @@ function resetPreviewState() {
   pdfModalSource.value = null
   previewViewer?.destroy()
   previewViewer = null
+}
+
+// pptx/pdf 공통: ArrayBuffer가 로컬 업로드에서 왔든 서버 조회에서 왔든 동일하게
+// 미리보기 상태에 반영한다.
+async function applyPreviewBuffer(ext, buffer) {
+  if (ext === 'pdf') {
+    pdfArrayBuffer.value = buffer
+    pdfPreviewSource.value = buffer.slice(0)
+    return
+  }
+  // pptx: 컨테이너가 v-if로 막 나타난 시점이라, DOM에 반영될 때까지 한 틱 기다린다.
+  pptxArrayBuffer.value = buffer
+  await nextTick()
+  await renderPptxPreview()
 }
 
 async function handleFileSelected(file) {
@@ -76,18 +104,47 @@ async function handleFileSelected(file) {
   fileName.value = file.name
 
   const buffer = await file.arrayBuffer()
+  await applyPreviewBuffer(ext, buffer)
 
-  if (ext === 'pdf') {
-    pdfArrayBuffer.value = buffer
-    pdfPreviewSource.value = buffer.slice(0)
-    return false
+  // 미리보기는 이미 끝났으니, 서버 저장 실패가 미리보기 자체를 막지는 않는다.
+  persistDocument(file.name, buffer.slice(0))
+
+  return false // antd-vue upload의 자동 업로드(서버 전송)를 막는다 - 여기서 직접 처리
+}
+
+async function persistDocument(name, buffer) {
+  savingDoc.value = true
+  saveError.value = ''
+  savedDocumentId.value = null
+  try {
+    const fileBase64 = await arrayBufferToBase64(buffer)
+    savedDocumentId.value = await saveDocument({ fileName: name, fileBase64 })
+  } catch (err) {
+    saveError.value = '서버에 파일을 저장하지 못했습니다.'
+    console.error(err)
+  } finally {
+    savingDoc.value = false
   }
+}
 
-  // pptx: 컨테이너가 v-if로 막 나타난 시점이라, DOM에 반영될 때까지 한 틱 기다린다.
-  pptxArrayBuffer.value = buffer
-  await nextTick()
-  await renderPptxPreview()
-  return false // antd-vue upload의 자동 업로드(서버 전송)를 막는다 - 클라이언트에서만 처리
+async function loadDocumentById() {
+  if (!loadId.value) return
+  resetPreviewState()
+  loadingDoc.value = true
+  loadError.value = ''
+  try {
+    const doc = await fetchDocument(loadId.value)
+    const ext = doc.fileName.split('.').pop()?.toLowerCase()
+    fileType.value = ext
+    fileName.value = doc.fileName
+    const buffer = await base64ToArrayBuffer(doc.fileBase64)
+    await applyPreviewBuffer(ext, buffer)
+  } catch (err) {
+    loadError.value = '문서를 불러오지 못했습니다.'
+    console.error(err)
+  } finally {
+    loadingDoc.value = false
+  }
 }
 
 async function renderPptxPreview() {
@@ -155,6 +212,24 @@ onBeforeUnmount(() => {
 
       <a-alert v-if="uploadError" class="document-preview-page__alert" type="warning" show-icon :message="uploadError" />
       <a-alert v-if="previewError" class="document-preview-page__alert" type="error" show-icon :message="previewError" />
+
+      <p v-if="savingDoc" class="document-preview-page__save-status">서버에 저장 중...</p>
+      <a-alert
+        v-else-if="savedDocumentId"
+        class="document-preview-page__alert"
+        type="success"
+        show-icon
+        :message="`서버에 저장되었습니다. (문서 ID: ${savedDocumentId})`"
+      />
+      <a-alert v-if="saveError" class="document-preview-page__alert" type="error" show-icon :message="saveError" />
+    </BaseCard>
+
+    <BaseCard title="저장된 문서 불러오기">
+      <a-input-group compact class="document-preview-page__load-group">
+        <a-input v-model:value="loadId" placeholder="문서 ID" class="document-preview-page__load-input" />
+        <a-button type="primary" :loading="loadingDoc" @click="loadDocumentById">불러오기</a-button>
+      </a-input-group>
+      <a-alert v-if="loadError" class="document-preview-page__alert" type="error" show-icon :message="loadError" />
     </BaseCard>
 
     <BaseCard v-if="fileType" :title="fileName">
@@ -222,6 +297,17 @@ onBeforeUnmount(() => {
 }
 .document-preview-page__alert {
   margin-top: 12px;
+}
+.document-preview-page__save-status {
+  font-size: 12px;
+  color: #898781;
+  margin: 8px 0 0;
+}
+.document-preview-page__load-group {
+  display: flex;
+}
+.document-preview-page__load-input {
+  max-width: 240px;
 }
 .document-preview-page__pptx-box {
   width: 480px;
