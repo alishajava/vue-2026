@@ -32,16 +32,19 @@ async function onFileChange(event) {
   if (!file) return
 
   const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext !== 'pptx') {
-    message.error('.pptx 파일만 첨부할 수 있습니다.')
+  if (ext !== 'pptx' && ext !== 'pdf') {
+    message.error('.pptx 또는 .pdf 파일만 첨부할 수 있습니다.')
     return
   }
 
   const buffer = await file.arrayBuffer()
   const row = props.params.data
   row.fileName = file.name
+  row.fileType = ext
   row.fileBuffer = buffer
   row.registeredAt = new Date()
+  // 이미 저장된 행이면, 새 파일을 첨부한 순간부터 "저장 필요" 상태로 바뀐다.
+  if (row.status === 'saved') row.status = 'dirty'
   // row 객체를 직접 변형했으므로, ag-Grid에게 그 행의 셀을 다시 그리라고 알려준다.
   props.params.api.applyTransaction({ update: [row] })
 }
@@ -50,6 +53,6 @@ async function onFileChange(event) {
 <template>
   <span>
     <a-button size="small" @click="triggerSelect">파일선택</a-button>
-    <input ref="fileInput" type="file" accept=".pptx" style="display: none" @change="onFileChange" />
+    <input ref="fileInput" type="file" accept=".pptx,.pdf" style="display: none" @change="onFileChange" />
   </span>
 </template>

@@ -31,7 +31,7 @@ const [partA, partB] = PARTS
         :factories="FACTORIES"
       />
       <router-link class="production-dashboard-page__preview-link" to="/preview">문서 미리보기 →</router-link>
-      <router-link class="production-dashboard-page__preview-link" to="/documents">PPT 자료함 →</router-link>
+      <router-link class="production-dashboard-page__preview-link" to="/documents">PPT/PDF 자료함 →</router-link>
     </template>
 
     <template #chart>
