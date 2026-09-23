@@ -10,12 +10,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import ProductionDashboardPage from '../components/pages/ProductionDashboardPage.vue'
 import DocumentPreviewPage from '../components/pages/DocumentPreviewPage.vue'
+import DocumentLibraryPage from '../components/pages/DocumentLibraryPage.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: ProductionDashboardPage },
     { path: '/preview', name: 'document-preview', component: DocumentPreviewPage },
+    { path: '/documents', name: 'document-library', component: DocumentLibraryPage },
   ],
 })
 
