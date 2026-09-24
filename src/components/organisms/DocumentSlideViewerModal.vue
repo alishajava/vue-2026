@@ -701,17 +701,19 @@ onBeforeUnmount(() => {
   margin-top: 12px;
 }
 .pdf-page-caption {
+  /* 캡션 자체에 선택 테두리를 넣으면, 바로 아래에 이어지는 다음 페이지의 윗부분과
+     맞닿아서 마치 다음 페이지가 같이 선택된 것처럼 보였다(실제 사용자 리포트로 확인).
+     선택 표시는 캔버스 쪽 outline(highlightPdfPage)이 이미 하고 있으므로, 여기서는
+     글자 색만 바꿔서 캡션이 "다음 페이지의 테두리"처럼 오해되지 않게 한다. */
   text-align: center;
   font-size: 12px;
   color: #52514e;
   padding: 4px 0 10px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
 }
 .pdf-page-caption--active {
   color: #1677ff;
   font-weight: 600;
-  border-bottom-color: #1677ff;
 }
 .pptx-slide-viewer__list-fallback {
   font-size: 12px;
