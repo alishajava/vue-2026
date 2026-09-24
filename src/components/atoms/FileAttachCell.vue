@@ -47,6 +47,10 @@ async function onFileChange(event) {
   if (row.status === 'saved') row.status = 'dirty'
   // row 객체를 직접 변형했으므로, ag-Grid에게 그 행의 셀을 다시 그리라고 알려준다.
   props.params.api.applyTransaction({ update: [row] })
+  // applyTransaction은 컬럼별로 "바뀐 필드"만 골라서 다시 그린다 - title 필드 자체는
+  // 안 바뀌었으니 구분 컬럼(TitleCell, fileName을 보고 "미리보기" 버튼을 표시)은
+  // 그냥 두면 갱신되지 않는다. 강제로 같이 다시 그려준다.
+  props.params.api.refreshCells({ columns: ['title'], force: true })
 }
 </script>
 
