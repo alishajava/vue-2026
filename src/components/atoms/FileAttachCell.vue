@@ -51,7 +51,7 @@ async function onFileChange(event) {
 </script>
 
 <template>
-  <span>
+  <span style="display: flex; align-items: center; height: 100%">
     <a-button size="small" @click="triggerSelect">파일선택</a-button>
     <input ref="fileInput" type="file" accept=".pptx,.pdf,.ppt" style="display: none" @change="onFileChange" />
   </span>

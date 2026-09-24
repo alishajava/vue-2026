@@ -81,6 +81,7 @@ const enlargeOpen = ref(false)
 const listContainer = ref(null)
 const previewContainer = ref(null)
 const enlargeContainer = ref(null)
+const listFailed = ref(false)
 let listViewer = null
 let previewViewer = null
 let enlargeViewer = null
@@ -147,16 +148,30 @@ function pdfNext() {
 
 async function initPptxMain() {
   if (!listContainer.value || !previewContainer.value || !props.fileBuffer) return
+
+  // 좌측 목록(list 모드, 슬라이드 전체를 한 번에 렌더링)과 우측 큰 미리보기(slide 모드,
+  // 첫 슬라이드만 렌더링)를 독립된 try/catch로 분리한다. list 모드는 모든 슬라이드를
+  // 한꺼번에 그리다 보니 특정 슬라이드의 콘텐츠(차트/특수 도형 등)에 따라 실패할 수
+  // 있는데, 이때도 하나로 묶여 있으면 훨씬 단순한 slide 모드(첫 슬라이드만)까지 같이
+  // 실패해서 미리보기 자체가 안 뜨는 문제가 있었다. 분리해두면 목록 렌더링이 실패해도
+  // 최소한 오른쪽 큰 미리보기는 계속 보여줄 수 있다.
+  let listOk = false
   try {
     listViewer = initPptxPreview(listContainer.value, { ...LIST_SIZE, mode: 'list' })
     await listViewer.preview(props.fileBuffer.slice(0))
     attachThumbnailClicks()
+    listOk = true
+  } catch (err) {
+    listFailed.value = true
+    console.error('슬라이드 목록 렌더링 실패 - 오른쪽 큰 미리보기는 계속 시도합니다', err)
+  }
 
+  try {
     previewViewer = initPptxPreview(previewContainer.value, { ...PREVIEW_SIZE, mode: 'slide' })
     await previewViewer.preview(props.fileBuffer.slice(0))
-    highlightThumbnail(0)
+    if (listOk) highlightThumbnail(0)
   } catch (err) {
-    loadError.value = '파일을 읽는 데 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.'
+    loadError.value = 'PPT 파일을 읽는 데 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.'
     console.error(err)
   }
 }
@@ -229,6 +244,7 @@ function cleanupMain() {
   listViewer = null
   previewViewer = null
   loadError.value = ''
+  listFailed.value = false
   pdfListSource.value = null
   pdfPreviewSource.value = null
   currentPage.value = 1
@@ -320,7 +336,10 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="pptx-slide-viewer">
-        <div ref="listContainer" class="pptx-slide-viewer__list" />
+        <div class="pptx-slide-viewer__list">
+          <p v-if="listFailed" class="pptx-slide-viewer__list-fallback">슬라이드 목록을 표시할 수 없습니다.</p>
+          <div v-show="!listFailed" ref="listContainer" />
+        </div>
         <div class="pptx-slide-viewer__main">
           <div class="pptx-slide-viewer__main-header">
             <span class="pptx-slide-viewer__hint">슬라이드를 클릭하면 오른쪽에 크게 표시됩니다</span>
@@ -452,6 +471,12 @@ onBeforeUnmount(() => {
   color: #1677ff;
   font-weight: 600;
   border-bottom-color: #1677ff;
+}
+.pptx-slide-viewer__list-fallback {
+  font-size: 12px;
+  color: #898781;
+  text-align: center;
+  margin: 12px 4px;
 }
 .ppt-slide-thumb {
   display: block;

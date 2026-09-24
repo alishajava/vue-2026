@@ -5,7 +5,7 @@
  * PPT/PDF 자료를 행 단위로 등록/변경/삭제/숨기기 하는 그리드 화면. 대시보드/단일
  * 미리보기 페이지와는 별개의 독립 라우트(/#/documents)다.
  *
- * 컬럼: 구분(제목, 클릭 시 미리보기 팝업) / 파일첨부 / 파일명 / 등록자 / 등록일시 / 관리
+ * 컬럼: 구분(제목, 파일 첨부 시 나타나는 "미리보기" 버튼 클릭하면 팝업) / 파일첨부 / 파일명 / 등록자 / 등록일시 / 관리
  *
  * [행 상태(status) 흐름]
  * 'new'(추가만 하고 아직 저장 안 함) -> 저장 -> 'saved'(서버에 반영됨)
@@ -31,6 +31,7 @@ import { message } from 'ant-design-vue'
 import BaseCard from '../atoms/BaseCard.vue'
 import FileAttachCell from '../atoms/FileAttachCell.vue'
 import RowActionsCell from '../atoms/RowActionsCell.vue'
+import TitleCell from '../atoms/TitleCell.vue'
 import DocumentSlideViewerModal from '../organisms/DocumentSlideViewerModal.vue'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 import {
@@ -164,8 +165,8 @@ const columnDefs = [
     field: 'title',
     editable: true,
     flex: 1.6,
-    minWidth: 180,
-    cellStyle: { cursor: 'pointer', fontWeight: 600 },
+    minWidth: 220,
+    cellRenderer: TitleCell,
     valueFormatter: (params) => {
       if (params.data.hidden) return `[숨김] ${params.value || ''}`
       let seq = 0
@@ -237,9 +238,7 @@ const viewerSlideImages = shallowRef([])
 const viewerLoading = ref(false)
 const viewerError = ref('')
 
-async function onCellClicked(event) {
-  if (event.colDef.field !== 'title') return
-  const row = event.data
+async function openPreview(row) {
   if (!row.fileName) return
 
   viewerFileName.value = row.fileName
@@ -274,6 +273,10 @@ async function onCellClicked(event) {
     viewerLoading.value = false
   }
 }
+
+// TitleCell(cellRenderer)이 메인 앱 트리 밖에서 마운트되므로, 부모(이 페이지)의
+// openPreview를 직접 emit으로 부를 수 없다 - ag-Grid의 context로 넘겨서 호출한다.
+const gridContext = { openPreview }
 </script>
 
 <template>
@@ -299,10 +302,10 @@ async function onCellClicked(event) {
           :row-data="rowData"
           :default-col-def="defaultColDef"
           :get-row-style="getRowStyle"
+          :context="gridContext"
           dom-layout="autoHeight"
           :suppress-cell-focus="true"
           @grid-ready="onGridReady"
-          @cell-clicked="onCellClicked"
           @cell-value-changed="onCellValueChanged"
         />
       </div>
@@ -355,5 +358,14 @@ async function onCellClicked(event) {
   width: 100%;
   --ag-header-column-resize-handle-display: none;
   --ag-row-hover-color: #f3f2ee;
+}
+/*
+ * ag-theme-alpine의 .ag-cell은 기본이 display:inline-block이라 텍스트는 줄간격으로
+ * 세로 중앙정렬되지만, 커스텀 cellRenderer(버튼 묶음 등 블록 요소)는 중앙정렬이 안 되고
+ * 셀 위쪽에 붙어버린다. flex로 바꿔서 모든 셀 내용을 일관되게 세로 중앙정렬한다.
+ */
+.document-library-page__grid :deep(.ag-cell) {
+  display: flex;
+  align-items: center;
 }
 </style>
