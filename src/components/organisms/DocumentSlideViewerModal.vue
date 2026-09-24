@@ -341,13 +341,29 @@ function attachThumbnailClicks() {
   })
 }
 
+// outline은 라이브러리가 각 슬라이드 div에 걸어둔 overflow:hidden에 가려 안 보였고,
+// box-shadow(inset)는 클리핑은 피하지만 배경/테두리와 같은 단계(자식 콘텐츠보다 먼저)에
+// 그려져서 그 위에 실제 슬라이드 내용(배경/마스터/도형)이 나중에 덮어써 결국 가려졌다.
+// 실제 DOM 엘리먼트를 슬라이드 콘텐츠보다 "나중에" 자식으로 추가하면 그 위에 그려지고,
+// inset:0으로 크기를 el 안쪽에 딱 맞추면 overflow:hidden에 잘리지도 않는다.
+function getOrCreateHighlightOverlay(el) {
+  let overlay = el.querySelector(':scope > .pptx-slide-viewer__thumb-highlight')
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.className = 'pptx-slide-viewer__thumb-highlight'
+    overlay.style.position = 'absolute'
+    overlay.style.inset = '0'
+    overlay.style.pointerEvents = 'none'
+    el.appendChild(overlay)
+  }
+  return overlay
+}
+
 function highlightThumbnail(index) {
   if (!listViewer?.wrapper) return
   Array.from(listViewer.wrapper.children).forEach((el, i) => {
-    // 라이브러리가 각 슬라이드 div에 overflow:hidden을 걸어두기 때문에, 안쪽으로
-    // 파고드는 음수 outline-offset은 그 overflow에 가려 화면에 전혀 안 보였다.
-    // box-shadow(inset)는 그 요소 자신의 overflow에 클리핑되지 않으므로 이 문제를 피한다.
-    el.style.boxShadow = i === index ? 'inset 0 0 0 2px #1677ff' : 'none'
+    const overlay = getOrCreateHighlightOverlay(el)
+    overlay.style.boxShadow = i === index ? 'inset 0 0 0 2px #1677ff' : 'none'
     // 방향키/점 인디케이터로 이동할 때는 마우스로 직접 스크롤하지 않으므로, 선택된
     // 슬라이드가 좌측 목록의 보이는 영역 밖에 있으면 안 따라오는 것처럼 보였다.
     if (i === index) el.scrollIntoView({ block: 'nearest' })
