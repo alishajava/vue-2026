@@ -36,6 +36,15 @@
  * 위쪽이 잘리고, 그 잘린 만큼 wrapper에 세로 스크롤이 생긴다. 그래서 렌더링 전에
  * JSZip으로 ppt/presentation.xml의 <p:sldSz>만 직접 읽어 실제 비율을 구하고,
  * 그 비율에 맞춰 viewPort.height를 계산해서 넘긴다(파싱 실패 시 16:9로 대체).
+ *
+ * [이전/다음 탐색]
+ * pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음 버튼은
+ * 라이브러리 내부 상태만 바꾸고 우리 쪽 상태(goToSlide 등)를 거치지 않아서,
+ * 그 버튼으로 이동하면 좌측 목록/점 인디케이터가 따라오지 않았다. 렌더링 직후
+ * 그 버튼(.pptx-preview-wrapper-next)과 페이지 표시(.pptx-preview-wrapper-pagination)를
+ * DOM에서 지우고, 같은 위치/모양의 SlideNavArrows를 우리가 대신 그려서 goToSlide로
+ * 연결한다. 좌측 목록/점 인디케이터/이 버튼/↑↓ 방향키가 전부 goToDot·goToSlide 하나로
+ * 통일되어 항상 같이 갱신된다.
  */
 import { ref, shallowRef, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { init as initPptxPreview } from 'pptx-preview'
@@ -44,6 +53,7 @@ import VuePdfEmbed from 'vue-pdf-embed'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import SlideDotsIndicator from '../atoms/SlideDotsIndicator.vue'
+import SlideNavArrows from '../atoms/SlideNavArrows.vue'
 
 const props = defineProps({
   open: {
@@ -122,6 +132,25 @@ function goToDot(index) {
   if (props.fileType === 'pptx') goToSlide(index)
   else goToPage(index + 1)
 }
+
+// 좌측 슬라이드/페이지 목록에서 ↑/↓로도 이동할 수 있게. dotCount/dotActiveIndex/
+// goToDot을 그대로 재사용해서 pptx/pdf/ppt 세 타입 모두 동일하게 동작한다.
+// 이 모달이 열려있는 동안에만(팝업이 화면을 가리는 동안에만) 붙였다 뗀다.
+function handleKeydown(event) {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+  const nextIndex = dotActiveIndex.value + (event.key === 'ArrowUp' ? -1 : 1)
+  if (nextIndex < 0 || nextIndex >= dotCount.value) return
+  event.preventDefault()
+  goToDot(nextIndex)
+}
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) window.addEventListener('keydown', handleKeydown)
+    else window.removeEventListener('keydown', handleKeydown)
+  },
+)
 
 async function getSlideAspectRatio(buffer) {
   try {
@@ -329,6 +358,7 @@ function closeMain() {
 onBeforeUnmount(() => {
   cleanupMain()
   closeEnlarge()
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -361,11 +391,7 @@ onBeforeUnmount(() => {
         <div class="pptx-slide-viewer__main">
           <div class="pptx-slide-viewer__main-header">
             <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}페이지</span>
-            <span class="pptx-slide-viewer__main-actions">
-              <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
-              <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
-              <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-            </span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
           </div>
           <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
             <VuePdfEmbed
@@ -375,6 +401,7 @@ onBeforeUnmount(() => {
               :width="PREVIEW_WIDTH"
               @loaded="onPdfLoaded"
             />
+            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
           </div>
           <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
@@ -395,14 +422,11 @@ onBeforeUnmount(() => {
         <div class="pptx-slide-viewer__main">
           <div class="pptx-slide-viewer__main-header">
             <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
-            <span class="pptx-slide-viewer__main-actions">
-              <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
-              <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
-              <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-            </span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
           </div>
           <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
             <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
+            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
           </div>
           <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
@@ -416,17 +440,20 @@ onBeforeUnmount(() => {
         <div class="pptx-slide-viewer__main">
           <div class="pptx-slide-viewer__main-header">
             <span class="pptx-slide-viewer__hint">{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
-            <span class="pptx-slide-viewer__main-actions">
-              <a-button size="small" :disabled="pptxCurrentIndex <= 0" @click="pptxPrev">이전</a-button>
-              <a-button size="small" :disabled="pptxCurrentIndex >= pptxSlideCount - 1" @click="pptxNext">다음</a-button>
-              <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-            </span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
           </div>
           <div
             ref="previewContainer"
             class="pptx-slide-viewer__preview"
             :style="{ width: previewSize.width + 'px', height: previewSize.height + 'px' }"
-          />
+          >
+            <SlideNavArrows
+              :disabled-prev="pptxCurrentIndex <= 0"
+              :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
+              @prev="pptxPrev"
+              @next="pptxNext"
+            />
+          </div>
           <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
       </div>
@@ -446,42 +473,39 @@ onBeforeUnmount(() => {
     <template v-if="fileType === 'pdf'">
       <div class="pptx-slide-viewer__enlarge-header">
         <span>{{ currentPage }} / {{ totalPages }}페이지</span>
-        <span class="pptx-slide-viewer__main-actions">
-          <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
-          <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
-        </span>
       </div>
       <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
         <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="ENLARGE_WIDTH" />
+        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
       </div>
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
     <template v-else-if="fileType === 'ppt'">
       <div class="pptx-slide-viewer__enlarge-header">
         <span>{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
-        <span class="pptx-slide-viewer__main-actions">
-          <a-button size="small" :disabled="currentPage <= 1" @click="pdfPrev">이전</a-button>
-          <a-button size="small" :disabled="currentPage >= totalPages" @click="pdfNext">다음</a-button>
-        </span>
       </div>
       <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
         <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
+        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
       </div>
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
     <template v-else>
       <div class="pptx-slide-viewer__enlarge-header">
         <span>{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
-        <span class="pptx-slide-viewer__main-actions">
-          <a-button size="small" :disabled="pptxCurrentIndex <= 0" @click="pptxPrev">이전</a-button>
-          <a-button size="small" :disabled="pptxCurrentIndex >= pptxSlideCount - 1" @click="pptxNext">다음</a-button>
-        </span>
       </div>
       <div
         ref="enlargeContainer"
         class="pptx-slide-viewer__enlarge"
         :style="{ width: enlargeSize.width + 'px', height: enlargeSize.height + 'px' }"
-      />
+      >
+        <SlideNavArrows
+          :disabled-prev="pptxCurrentIndex <= 0"
+          :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
+          @prev="pptxPrev"
+          @next="pptxNext"
+        />
+      </div>
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
   </a-modal>
@@ -524,6 +548,7 @@ onBeforeUnmount(() => {
   /* pptx는 실제 슬라이드 비율에 맞춰 width/height를 인라인 style로 계산해서 넣는다
      (script의 previewSize) - 고정값을 주면 실제 비율과 달라 위/아래가 잘리거나
      스크롤이 생긴다. */
+  position: relative;
   max-width: 100%;
   border: 1px solid #e1e0d9;
   border-radius: 6px;
@@ -538,6 +563,7 @@ onBeforeUnmount(() => {
 }
 .pptx-slide-viewer__enlarge {
   /* pptx 크게보기도 마찬가지로 script의 enlargeSize를 인라인 style로 적용한다. */
+  position: relative;
   max-width: 100%;
 }
 .pptx-slide-viewer__enlarge--pdf {
