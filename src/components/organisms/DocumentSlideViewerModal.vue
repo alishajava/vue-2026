@@ -347,7 +347,10 @@ async function openEnlarge() {
 
   if (!enlargeContainer.value) return
   try {
-    enlargeContainer.value.innerHTML = ''
+    // enlargeContainer 안에는 라이브러리가 그릴 내용뿐 아니라 우리가 만든
+    // SlideNavArrows(Vue가 렌더링)도 같이 들어있다. innerHTML=''로 지우면 그 버튼도
+    // 같이 사라진다 - 이 모달은 destroy-on-close라 열릴 때마다 어차피 컨테이너가
+    // 새로 만들어지므로 지울 필요 자체가 없다.
     enlargeViewer = initPptxPreview(enlargeContainer.value, { ...enlargeSize.value, mode: 'slide' })
     await enlargeViewer.preview(props.fileBuffer.slice(0))
     stripBuiltInNav(enlargeContainer.value)
