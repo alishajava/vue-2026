@@ -635,6 +635,12 @@ onBeforeUnmount(() => {
   background: #f3f2ee;
   padding: 8px;
 }
+/* vue-pdf-embed는 페이지 div끼리 여백 없이 바로 붙여서 렌더링한다 - 선택된 페이지의
+   테두리(하단)가 바로 아래 페이지의 상단에 맞닿아, 그 페이지도 선택된 것처럼
+   보이는 문제가 있었다. 페이지 사이에 여백을 줘서 테두리가 서로 안 닿게 한다. */
+.pptx-slide-viewer__list :deep(.vue-pdf-embed__page) {
+  margin-bottom: 10px;
+}
 .pptx-slide-viewer__main {
   flex: 1;
   min-width: 0;
