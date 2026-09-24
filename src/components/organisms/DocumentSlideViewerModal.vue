@@ -309,10 +309,6 @@ async function initPptxMain() {
   try {
     listViewer = initPptxPreview(listContainer.value, { width: LIST_CONTENT_WIDTH, mode: 'list' })
     await listViewer.preview((cleanedFileBuffer || props.fileBuffer).slice(0))
-    // 라이브러리가 목록 전체를 감싸는 wrapper에 background:#000을 직접 박아 넣는데,
-    // 각 슬라이드 div의 하단 10px margin 틈새로 이 검정 배경이 비쳐서 슬라이드마다
-    // 밑에 검은 줄이 생긴 것처럼 보였다 - wrapper 배경을 투명하게 덮어써서 없앤다.
-    listViewer.wrapper.style.background = 'transparent'
     attachThumbnailClicks()
     listOk = true
   } catch (err) {
@@ -344,10 +340,8 @@ function attachThumbnailClicks() {
 function highlightThumbnail(index) {
   if (!listViewer?.wrapper) return
   Array.from(listViewer.wrapper.children).forEach((el, i) => {
-    // 라이브러리가 각 슬라이드 div에 overflow:hidden을 걸어두기 때문에, 안쪽으로
-    // 파고드는 음수 outline-offset은 그 overflow에 가려 화면에 전혀 안 보였다.
-    // box-shadow(inset)는 그 요소 자신의 overflow에 클리핑되지 않으므로 이 문제를 피한다.
-    el.style.boxShadow = i === index ? 'inset 0 0 0 2px #1677ff' : 'none'
+    el.style.outline = i === index ? '2px solid #1677ff' : 'none'
+    el.style.outlineOffset = '-2px'
     // 방향키/점 인디케이터로 이동할 때는 마우스로 직접 스크롤하지 않으므로, 선택된
     // 슬라이드가 좌측 목록의 보이는 영역 밖에 있으면 안 따라오는 것처럼 보였다.
     if (i === index) el.scrollIntoView({ block: 'nearest' })
