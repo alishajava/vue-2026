@@ -7,6 +7,11 @@
  * DOM에서 제거했는데(SlideViewerModal 참고), 시각적으로는 그 스타일이 나아서 우리
  * 버튼으로 같은 자리에 다시 그려 넣는다. 부모 쪽에 position:relative가 있어야
  * 이 컴포넌트의 absolute 포지셔닝이 미리보기 박스 기준으로 잡힌다.
+ *
+ * pptx 타입에서는 이 버튼들이 Vue 템플릿으로 먼저 렌더링된 뒤, pptx-preview
+ * 라이브러리가 같은 컨테이너에 자기 wrapper div(배경 #000, 불투명)를 나중에
+ * append한다 - DOM 순서상 나중에 붙은 쪽이 위에 그려지므로 z-index 없이는
+ * 이 버튼들이 그 wrapper에 완전히 가려져 안 보인다. z-index로 항상 위에 오게 한다.
  */
 defineProps({
   disabledPrev: {
@@ -46,6 +51,7 @@ const emit = defineEmits(['prev', 'next'])
 <style scoped>
 .slide-nav-arrow {
   position: absolute;
+  z-index: 5;
   bottom: 14px;
   width: 36px;
   height: 36px;

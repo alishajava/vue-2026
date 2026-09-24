@@ -291,6 +291,9 @@ function highlightThumbnail(index) {
   Array.from(listViewer.wrapper.children).forEach((el, i) => {
     el.style.outline = i === index ? '2px solid #1677ff' : 'none'
     el.style.outlineOffset = '-2px'
+    // 방향키/점 인디케이터로 이동할 때는 마우스로 직접 스크롤하지 않으므로, 선택된
+    // 슬라이드가 좌측 목록의 보이는 영역 밖에 있으면 안 따라오는 것처럼 보였다.
+    if (i === index) el.scrollIntoView({ block: 'nearest' })
   })
 }
 
