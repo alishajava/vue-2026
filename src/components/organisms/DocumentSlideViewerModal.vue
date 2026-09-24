@@ -140,12 +140,15 @@ function goToDot(index) {
   else goToPage(index + 1)
 }
 
-// 좌측 슬라이드/페이지 목록에서 ↑/↓로도 이동할 수 있게. dotCount/dotActiveIndex/
+// 좌측 슬라이드/페이지 목록에서 방향키로도 이동할 수 있게. dotCount/dotActiveIndex/
 // goToDot을 그대로 재사용해서 pptx/pdf/ppt 세 타입 모두 동일하게 동작한다.
 // 이 모달이 열려있는 동안에만(팝업이 화면을 가리는 동안에만) 붙였다 뗀다.
+// 기본(메인) 팝업은 ↑/↓, 크게보기는 좌우 화살표 버튼만 보이므로 ←/→를 쓴다.
 function handleKeydown(event) {
-  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-  const nextIndex = dotActiveIndex.value + (event.key === 'ArrowUp' ? -1 : 1)
+  const prevKey = enlargeOpen.value ? 'ArrowLeft' : 'ArrowUp'
+  const nextKey = enlargeOpen.value ? 'ArrowRight' : 'ArrowDown'
+  if (event.key !== prevKey && event.key !== nextKey) return
+  const nextIndex = dotActiveIndex.value + (event.key === prevKey ? -1 : 1)
   if (nextIndex < 0 || nextIndex >= dotCount.value) return
   event.preventDefault()
   goToDot(nextIndex)
