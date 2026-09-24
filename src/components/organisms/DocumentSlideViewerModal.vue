@@ -91,6 +91,10 @@ const props = defineProps({
 const emit = defineEmits(['update:open'])
 
 const LIST_WIDTH = 200
+// 좌측 패널(.pptx-slide-viewer__list)은 좌우 8px씩 패딩(16px)이 있고, 세로 스크롤바가
+// 뜨면 그만큼도 더 먹는다 - 실제 콘텐츠 폭은 이 여유를 뺀 값으로 넘겨야 가로 스크롤이
+// 안 생긴다.
+const LIST_CONTENT_WIDTH = LIST_WIDTH - 36
 const PREVIEW_WIDTH = 760
 const ENLARGE_WIDTH = 1180
 
@@ -252,7 +256,7 @@ async function initPptxMain() {
   // 최소한 오른쪽 큰 미리보기는 계속 보여줄 수 있다.
   let listOk = false
   try {
-    listViewer = initPptxPreview(listContainer.value, { width: LIST_WIDTH, mode: 'list' })
+    listViewer = initPptxPreview(listContainer.value, { width: LIST_CONTENT_WIDTH, mode: 'list' })
     await listViewer.preview(props.fileBuffer.slice(0))
     attachThumbnailClicks()
     listOk = true
@@ -375,7 +379,7 @@ onBeforeUnmount(() => {
     <a-spin :spinning="loading">
       <div v-if="fileType === 'pdf'" class="pptx-slide-viewer">
         <div class="pptx-slide-viewer__list">
-          <VuePdfEmbed v-if="pdfListSource" :source="pdfListSource" :width="LIST_WIDTH - 20">
+          <VuePdfEmbed v-if="pdfListSource" :source="pdfListSource" :width="LIST_CONTENT_WIDTH">
             <template #after-page="{ page }">
               <div
                 class="pdf-page-caption"
