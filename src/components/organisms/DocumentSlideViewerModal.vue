@@ -279,6 +279,21 @@ function highlightPdfPage(page) {
   lastPdfHighlightId = id
 }
 
+// 캡션("N페이지" 글자)에만 클릭 이벤트가 있고 정작 썸네일(캔버스) 자체는 클릭해도
+// 아무 반응이 없었다 - pptx/ppt 목록은 썸네일 전체가 클릭 가능한 것과 어긋난다.
+// vue-pdf-embed가 각 페이지 div에 직접 클릭 콜백을 넘길 공식 API가 없어서, 렌더링된
+// 페이지 div에 직접 리스너를 달아준다. @rendered가 여러 번 호출될 수 있어 이미 붙인
+// 페이지는 data-click-bound로 표시해 중복 등록을 막는다.
+function attachPdfPageClicks() {
+  document.getElementById('pdf-list-page')?.querySelectorAll('[id^="pdf-list-page-"]').forEach((el) => {
+    if (el.dataset.clickBound) return
+    el.dataset.clickBound = 'true'
+    el.style.cursor = 'pointer'
+    const page = Number(el.id.slice('pdf-list-page-'.length))
+    el.addEventListener('click', () => goToPage(page))
+  })
+}
+
 watch(currentPage, (page) => {
   if (props.fileType === 'pdf') highlightPdfPage(page)
 })
@@ -483,7 +498,12 @@ onBeforeUnmount(() => {
             id="pdf-list-page"
             :source="pdfListSource"
             :width="LIST_CONTENT_WIDTH"
-            @rendered="highlightPdfPage(currentPage)"
+            @rendered="
+              () => {
+                highlightPdfPage(currentPage)
+                attachPdfPageClicks()
+              }
+            "
           >
             <template #after-page="{ page }">
               <div
