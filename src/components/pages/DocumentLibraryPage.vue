@@ -42,6 +42,7 @@ import {
   convertToSlides,
   fetchDocumentSlides,
 } from '../../api/documentApi'
+import { PPTX_USE_SERVER_CONVERSION } from '../../config/documentPreview'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',
@@ -249,12 +250,16 @@ async function openPreview(row) {
   viewerOpen.value = true
   viewerLoading.value = true
 
+  // 구버전 .ppt는 브라우저에서 못 읽으므로 서버(Apache POI)가 PNG로 변환해준다.
+  // pptx도 클라이언트 렌더링 버그(자리표시자/검은 줄/테두리 등)를 피하려고 같은
+  // 서버 변환 파이프라인으로 통일했다 - PPTX_USE_SERVER_CONVERSION 참고.
+  const useServerConversion = row.fileType === 'ppt' || (row.fileType === 'pptx' && PPTX_USE_SERVER_CONVERSION)
+
   try {
-    if (row.fileType === 'ppt') {
-      // 구버전 .ppt는 브라우저에서 못 읽으므로 서버(Apache POI)가 PNG로 변환해준다.
+    if (useServerConversion) {
       if (row.fileBuffer) {
         const fileBase64 = await arrayBufferToBase64(row.fileBuffer.slice(0))
-        viewerSlideImages.value = await convertToSlides({ fileBase64, fileType: 'ppt' })
+        viewerSlideImages.value = await convertToSlides({ fileBase64, fileType: row.fileType })
       } else if (row.id) {
         viewerSlideImages.value = await fetchDocumentSlides(row.id)
       }
@@ -265,8 +270,8 @@ async function openPreview(row) {
       viewerFileBuffer.value = await base64ToArrayBuffer(base64)
     }
   } catch (err) {
-    if (row.fileType === 'ppt') {
-      viewerError.value = '.ppt 파일을 변환하지 못했습니다. (서버 변환 기능이 아직 준비되지 않았을 수 있습니다)'
+    if (useServerConversion) {
+      viewerError.value = '파일을 변환하지 못했습니다. (서버 변환 기능이 아직 준비되지 않았을 수 있습니다)'
     }
     console.error(err)
   } finally {

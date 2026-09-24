@@ -9,6 +9,12 @@
  * 완전히 달라서 내부적으로 두 갈래로 나뉜다.
  *
  * [pptx]
+ * PPTX_USE_SERVER_CONVERSION(config/documentPreview.js)이 true인 현재는 pptx도
+ * ppt와 똑같이 서버(Apache POI)가 PNG로 변환한 이미지 배열을 그대로 보여준다 -
+ * 이 세션에서 계속 나왔던 pptx-preview 클라이언트 렌더링 버그(자리표시자 텍스트,
+ * 검은 줄, 테두리 안 보임 등)에서 자유롭기 때문. 아래 pptx-preview 기반 로직은
+ * 지우지 않고 백업으로 남겨뒀다 - 플래그를 false로 바꾸면 바로 되살아난다.
+ *
  * pptx-preview는 list 모드에서 슬라이드마다 `.pptx-preview-slide-wrapper-{index}`
  * 클래스를 붙인 div를 wrapper에 순서대로 append한다(라이브러리 번들 소스 확인 완료).
  * 공식 API로 노출된 클릭 콜백이 없어서, 렌더링 직후 wrapper의 자식 엘리먼트들에
@@ -54,6 +60,7 @@ import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import SlideDotsIndicator from '../atoms/SlideDotsIndicator.vue'
 import SlideNavArrows from '../atoms/SlideNavArrows.vue'
+import { PPTX_USE_SERVER_CONVERSION } from '../../config/documentPreview'
 
 const props = defineProps({
   open: {
@@ -72,7 +79,7 @@ const props = defineProps({
     type: ArrayBuffer,
     default: null,
   },
-  // fileType === 'ppt'일 때만 쓰인다 - 서버가 변환해준 "data:image/png;base64,..." 배열.
+  // isImageBased일 때만 쓰인다 - 서버가 변환해준 "data:image/png;base64,..." 배열.
   slideImages: {
     type: Array,
     default: () => [],
@@ -81,7 +88,7 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  // fileType === 'ppt'일 때, 서버 변환이 실패하면 부모가 채워서 내려준다.
+  // isImageBased일 때, 서버 변환이 실패하면 부모가 채워서 내려준다.
   error: {
     type: String,
     default: '',
@@ -89,6 +96,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:open'])
+
+// ppt(구버전)는 항상, pptx는 PPTX_USE_SERVER_CONVERSION이 true일 때만 서버가 변환한
+// 이미지 배열(slideImages)로 렌더링한다 - 나머지(=false인 pptx)는 아래 pptx-preview
+// 기반 백업 로직으로 렌더링한다.
+const isImageBased = computed(
+  () => props.fileType === 'ppt' || (props.fileType === 'pptx' && PPTX_USE_SERVER_CONVERSION),
+)
 
 const LIST_WIDTH = 200
 // 좌측 패널(.pptx-slide-viewer__list)은 좌우 8px씩 패딩(16px)이 있고, 세로 스크롤바가
@@ -213,7 +227,7 @@ watch(
     }
     loadError.value = ''
     currentPage.value = 1
-    if (props.fileType === 'ppt') {
+    if (isImageBased.value) {
       // slideImages는 부모가 비동기로 채워서 내려준다 - watch(slideImages)에서 처리.
       totalPages.value = props.slideImages?.length || 1
       return
@@ -228,11 +242,12 @@ watch(
   },
 )
 
-// ppt는 팝업이 열린 뒤 서버 변환이 끝나야 slideImages가 채워지므로, 별도로 지켜본다.
+// ppt/pptx(이미지 기반)는 팝업이 열린 뒤 서버 변환이 끝나야 slideImages가 채워지므로,
+// 별도로 지켜본다.
 watch(
   () => props.slideImages,
   (images) => {
-    if (props.fileType === 'ppt') totalPages.value = images?.length || 1
+    if (isImageBased.value) totalPages.value = images?.length || 1
   },
 )
 
@@ -389,7 +404,7 @@ async function openEnlarge() {
   loadError.value = ''
   await nextTick()
 
-  if (props.fileType === 'ppt') return // <img>가 currentPage를 그대로 반영하므로 별도 처리 불필요
+  if (isImageBased.value) return // <img>가 currentPage를 그대로 반영하므로 별도 처리 불필요
 
   if (!props.fileBuffer) return
 
@@ -501,7 +516,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-else-if="fileType === 'ppt'" class="pptx-slide-viewer">
+      <div v-else-if="isImageBased" class="pptx-slide-viewer">
         <div class="pptx-slide-viewer__list">
           <img
             v-for="(src, idx) in slideImages"
@@ -574,7 +589,7 @@ onBeforeUnmount(() => {
       </div>
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
-    <template v-else-if="fileType === 'ppt'">
+    <template v-else-if="isImageBased">
       <div class="pptx-slide-viewer__enlarge-header">
         <span>{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
       </div>
