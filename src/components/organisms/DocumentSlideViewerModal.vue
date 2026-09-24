@@ -194,6 +194,22 @@ function pdfNext() {
   if (currentPage.value < totalPages.value) currentPage.value += 1
 }
 
+// pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 이전/다음 버튼은 라이브러리
+// 내부 상태(currentIndex)만 바꾸고 우리 쪽 goToSlide()를 거치지 않는다 - 그래서 그
+// 버튼으로 이동하면 좌측 목록 하이라이트/점 인디케이터가 전혀 안 따라왔다. 렌더링 직후
+// 그 버튼들(+자체 페이지 표시)을 DOM에서 지우고, 우리가 만든 버튼으로 대체한다.
+function stripBuiltInNav(container) {
+  container?.querySelectorAll('.pptx-preview-wrapper-next, .pptx-preview-wrapper-pagination').forEach((el) => el.remove())
+}
+
+function pptxPrev() {
+  if (pptxCurrentIndex.value > 0) goToSlide(pptxCurrentIndex.value - 1)
+}
+
+function pptxNext() {
+  if (pptxCurrentIndex.value < pptxSlideCount.value - 1) goToSlide(pptxCurrentIndex.value + 1)
+}
+
 async function initPptxMain() {
   if (!listContainer.value || !previewContainer.value || !props.fileBuffer) return
 
@@ -219,6 +235,7 @@ async function initPptxMain() {
   try {
     previewViewer = initPptxPreview(previewContainer.value, { ...previewSize.value, mode: 'slide' })
     await previewViewer.preview(props.fileBuffer.slice(0))
+    stripBuiltInNav(previewContainer.value)
     pptxSlideCount.value = previewViewer.slideCount
     pptxCurrentIndex.value = 0
     if (listOk) highlightThumbnail(0)
@@ -248,11 +265,9 @@ function goToSlide(index) {
   pptxCurrentIndex.value = index
   if (previewViewer) {
     previewViewer.renderSingleSlide(index)
-    previewViewer.updatePagination()
   }
   if (enlargeViewer) {
     enlargeViewer.renderSingleSlide(index)
-    enlargeViewer.updatePagination()
   }
   highlightThumbnail(index)
 }
@@ -276,10 +291,10 @@ async function openEnlarge() {
     enlargeContainer.value.innerHTML = ''
     enlargeViewer = initPptxPreview(enlargeContainer.value, { ...enlargeSize.value, mode: 'slide' })
     await enlargeViewer.preview(props.fileBuffer.slice(0))
+    stripBuiltInNav(enlargeContainer.value)
     const idx = pptxCurrentIndex.value
     if (idx > 0) {
       enlargeViewer.renderSingleSlide(idx)
-      enlargeViewer.updatePagination()
     }
   } catch (err) {
     loadError.value = '파일을 읽는 데 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.'
@@ -400,8 +415,12 @@ onBeforeUnmount(() => {
         </div>
         <div class="pptx-slide-viewer__main">
           <div class="pptx-slide-viewer__main-header">
-            <span class="pptx-slide-viewer__hint">슬라이드를 클릭하면 오른쪽에 크게 표시됩니다</span>
-            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+            <span class="pptx-slide-viewer__hint">{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
+            <span class="pptx-slide-viewer__main-actions">
+              <a-button size="small" :disabled="pptxCurrentIndex <= 0" @click="pptxPrev">이전</a-button>
+              <a-button size="small" :disabled="pptxCurrentIndex >= pptxSlideCount - 1" @click="pptxNext">다음</a-button>
+              <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+            </span>
           </div>
           <div
             ref="previewContainer"
@@ -451,6 +470,13 @@ onBeforeUnmount(() => {
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
     <template v-else>
+      <div class="pptx-slide-viewer__enlarge-header">
+        <span>{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
+        <span class="pptx-slide-viewer__main-actions">
+          <a-button size="small" :disabled="pptxCurrentIndex <= 0" @click="pptxPrev">이전</a-button>
+          <a-button size="small" :disabled="pptxCurrentIndex >= pptxSlideCount - 1" @click="pptxNext">다음</a-button>
+        </span>
+      </div>
       <div
         ref="enlargeContainer"
         class="pptx-slide-viewer__enlarge"
