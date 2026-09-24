@@ -215,6 +215,29 @@ function onPdfLoaded(proxy) {
   totalPages.value = proxy.numPages
 }
 
+// pdf는 페이지마다 캡션 텍스트 색만 바뀌고 실제 썸네일(캔버스)엔 표시가 없었다.
+// vue-pdf-embed는 id를 주면 각 페이지 div에 "{id}-{페이지번호}"를 붙여주므로
+// (아래 템플릿의 id="pdf-list-page"), pptx 썸네일과 같은 방식으로 테두리를 직접 넣는다.
+let lastPdfHighlightId = null
+function highlightPdfPage(page) {
+  if (lastPdfHighlightId) {
+    const prev = document.getElementById(lastPdfHighlightId)
+    if (prev) prev.style.outline = 'none'
+  }
+  const id = `pdf-list-page-${page}`
+  const active = document.getElementById(id)
+  if (active) {
+    active.style.outline = '2px solid #1677ff'
+    active.style.outlineOffset = '-2px'
+    active.scrollIntoView({ block: 'nearest' })
+  }
+  lastPdfHighlightId = id
+}
+
+watch(currentPage, (page) => {
+  if (props.fileType === 'pdf') highlightPdfPage(page)
+})
+
 function goToPage(page) {
   currentPage.value = page
 }
@@ -354,6 +377,7 @@ function cleanupMain() {
   pptxSlideCount.value = 0
   pdfListSource.value = null
   pdfPreviewSource.value = null
+  lastPdfHighlightId = null
   currentPage.value = 1
   totalPages.value = 1
 }
@@ -382,7 +406,13 @@ onBeforeUnmount(() => {
     <a-spin :spinning="loading">
       <div v-if="fileType === 'pdf'" class="pptx-slide-viewer">
         <div class="pptx-slide-viewer__list">
-          <VuePdfEmbed v-if="pdfListSource" :source="pdfListSource" :width="LIST_CONTENT_WIDTH">
+          <VuePdfEmbed
+            v-if="pdfListSource"
+            id="pdf-list-page"
+            :source="pdfListSource"
+            :width="LIST_CONTENT_WIDTH"
+            @rendered="highlightPdfPage(currentPage)"
+          >
             <template #after-page="{ page }">
               <div
                 class="pdf-page-caption"
