@@ -303,6 +303,7 @@ const gridContext = { openPreview }
           :default-col-def="defaultColDef"
           :get-row-style="getRowStyle"
           :context="gridContext"
+          :single-click-edit="true"
           dom-layout="autoHeight"
           :suppress-cell-focus="true"
           @grid-ready="onGridReady"
