@@ -597,6 +597,7 @@ onBeforeUnmount(() => {
     width="1260px"
     :footer="null"
     destroy-on-close
+    centered
     @cancel="closeEnlarge"
   >
     <template v-if="fileType === 'pdf'">
