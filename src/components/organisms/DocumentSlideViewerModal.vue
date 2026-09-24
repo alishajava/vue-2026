@@ -28,12 +28,22 @@
  * PNG로 변환시켜 그 결과(data URL 배열)를 slideImages prop으로 그대로 넘겨준다.
  * 여기서는 순수 <img> 태그로만 그리면 되고, pdf 쪽의 currentPage/totalPages를
  * 그대로 재사용해서 이전/다음 상태를 공유한다.
+ *
+ * [슬라이드 비율]
+ * pptx-preview의 'slide' 모드는 우리가 넘긴 viewPort.width/height를 기준으로
+ * 슬라이드를 가운데 정렬한다(top = (viewPort.height - 실제높이)/2). 실제 슬라이드
+ * 비율(4:3 등)이 우리가 고정으로 넘긴 16:9 박스와 다르면 이 top이 음수가 되어
+ * 위쪽이 잘리고, 그 잘린 만큼 wrapper에 세로 스크롤이 생긴다. 그래서 렌더링 전에
+ * JSZip으로 ppt/presentation.xml의 <p:sldSz>만 직접 읽어 실제 비율을 구하고,
+ * 그 비율에 맞춰 viewPort.height를 계산해서 넘긴다(파싱 실패 시 16:9로 대체).
  */
-import { ref, shallowRef, nextTick, watch, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { init as initPptxPreview } from 'pptx-preview'
+import JSZip from 'jszip'
 import VuePdfEmbed from 'vue-pdf-embed'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
+import SlideDotsIndicator from '../atoms/SlideDotsIndicator.vue'
 
 const props = defineProps({
   open: {
@@ -70,9 +80,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open'])
 
-const LIST_SIZE = { width: 180 }
-const PREVIEW_SIZE = { width: 640, height: 360 }
-const ENLARGE_SIZE = { width: 1100, height: 619 }
+const LIST_WIDTH = 200
+const PREVIEW_WIDTH = 760
+const ENLARGE_WIDTH = 1180
 
 const loadError = ref('')
 const enlargeOpen = ref(false)
@@ -82,9 +92,21 @@ const listContainer = ref(null)
 const previewContainer = ref(null)
 const enlargeContainer = ref(null)
 const listFailed = ref(false)
+const slideAspectRatio = ref(16 / 9) // presentation.xml 파싱 전 기본값
+const pptxCurrentIndex = ref(0)
+const pptxSlideCount = ref(0)
 let listViewer = null
 let previewViewer = null
 let enlargeViewer = null
+
+const previewSize = computed(() => ({
+  width: PREVIEW_WIDTH,
+  height: Math.round(PREVIEW_WIDTH / slideAspectRatio.value),
+}))
+const enlargeSize = computed(() => ({
+  width: ENLARGE_WIDTH,
+  height: Math.round(ENLARGE_WIDTH / slideAspectRatio.value),
+}))
 
 // --- pdf ---
 const pdfListSource = shallowRef(null)
@@ -92,6 +114,32 @@ const pdfPreviewSource = shallowRef(null)
 const pdfEnlargeSource = shallowRef(null)
 const currentPage = ref(1)
 const totalPages = ref(1)
+
+// 좌측 목록 클릭/점 인디케이터 클릭을 타입에 상관없이 같은 방식으로 다루기 위한 공용 값.
+const dotCount = computed(() => (props.fileType === 'pptx' ? pptxSlideCount.value : totalPages.value))
+const dotActiveIndex = computed(() => (props.fileType === 'pptx' ? pptxCurrentIndex.value : currentPage.value - 1))
+function goToDot(index) {
+  if (props.fileType === 'pptx') goToSlide(index)
+  else goToPage(index + 1)
+}
+
+async function getSlideAspectRatio(buffer) {
+  try {
+    const zip = await JSZip.loadAsync(buffer.slice(0))
+    const presFile = zip.file('ppt/presentation.xml')
+    if (!presFile) return null
+    const xml = await presFile.async('string')
+    const tag = xml.match(/<p:sldSz\b[^>]*\/?>/)?.[0]
+    if (!tag) return null
+    const cx = Number(tag.match(/cx="(\d+)"/)?.[1])
+    const cy = Number(tag.match(/cy="(\d+)"/)?.[1])
+    if (!cx || !cy) return null
+    return cx / cy
+  } catch (err) {
+    console.error('슬라이드 크기 파싱 실패 - 기본 16:9 비율을 사용합니다', err)
+    return null
+  }
+}
 
 watch(
   () => props.open,
@@ -149,6 +197,8 @@ function pdfNext() {
 async function initPptxMain() {
   if (!listContainer.value || !previewContainer.value || !props.fileBuffer) return
 
+  slideAspectRatio.value = (await getSlideAspectRatio(props.fileBuffer)) || 16 / 9
+
   // 좌측 목록(list 모드, 슬라이드 전체를 한 번에 렌더링)과 우측 큰 미리보기(slide 모드,
   // 첫 슬라이드만 렌더링)를 독립된 try/catch로 분리한다. list 모드는 모든 슬라이드를
   // 한꺼번에 그리다 보니 특정 슬라이드의 콘텐츠(차트/특수 도형 등)에 따라 실패할 수
@@ -157,7 +207,7 @@ async function initPptxMain() {
   // 최소한 오른쪽 큰 미리보기는 계속 보여줄 수 있다.
   let listOk = false
   try {
-    listViewer = initPptxPreview(listContainer.value, { ...LIST_SIZE, mode: 'list' })
+    listViewer = initPptxPreview(listContainer.value, { width: LIST_WIDTH, mode: 'list' })
     await listViewer.preview(props.fileBuffer.slice(0))
     attachThumbnailClicks()
     listOk = true
@@ -167,8 +217,10 @@ async function initPptxMain() {
   }
 
   try {
-    previewViewer = initPptxPreview(previewContainer.value, { ...PREVIEW_SIZE, mode: 'slide' })
+    previewViewer = initPptxPreview(previewContainer.value, { ...previewSize.value, mode: 'slide' })
     await previewViewer.preview(props.fileBuffer.slice(0))
+    pptxSlideCount.value = previewViewer.slideCount
+    pptxCurrentIndex.value = 0
     if (listOk) highlightThumbnail(0)
   } catch (err) {
     loadError.value = 'PPT 파일을 읽는 데 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.'
@@ -193,6 +245,7 @@ function highlightThumbnail(index) {
 }
 
 function goToSlide(index) {
+  pptxCurrentIndex.value = index
   if (previewViewer) {
     previewViewer.renderSingleSlide(index)
     previewViewer.updatePagination()
@@ -221,9 +274,9 @@ async function openEnlarge() {
   if (!enlargeContainer.value) return
   try {
     enlargeContainer.value.innerHTML = ''
-    enlargeViewer = initPptxPreview(enlargeContainer.value, { ...ENLARGE_SIZE, mode: 'slide' })
+    enlargeViewer = initPptxPreview(enlargeContainer.value, { ...enlargeSize.value, mode: 'slide' })
     await enlargeViewer.preview(props.fileBuffer.slice(0))
-    const idx = previewViewer?.currentIndex ?? 0
+    const idx = pptxCurrentIndex.value
     if (idx > 0) {
       enlargeViewer.renderSingleSlide(idx)
       enlargeViewer.updatePagination()
@@ -245,6 +298,9 @@ function cleanupMain() {
   previewViewer = null
   loadError.value = ''
   listFailed.value = false
+  slideAspectRatio.value = 16 / 9
+  pptxCurrentIndex.value = 0
+  pptxSlideCount.value = 0
   pdfListSource.value = null
   pdfPreviewSource.value = null
   currentPage.value = 1
@@ -265,7 +321,7 @@ onBeforeUnmount(() => {
   <a-modal
     :open="open"
     :title="fileName"
-    width="960px"
+    width="1040px"
     :footer="null"
     destroy-on-close
     @update:open="(val) => emit('update:open', val)"
@@ -274,7 +330,7 @@ onBeforeUnmount(() => {
     <a-spin :spinning="loading">
       <div v-if="fileType === 'pdf'" class="pptx-slide-viewer">
         <div class="pptx-slide-viewer__list">
-          <VuePdfEmbed v-if="pdfListSource" :source="pdfListSource" :width="160">
+          <VuePdfEmbed v-if="pdfListSource" :source="pdfListSource" :width="LIST_WIDTH - 20">
             <template #after-page="{ page }">
               <div
                 class="pdf-page-caption"
@@ -301,10 +357,11 @@ onBeforeUnmount(() => {
               v-if="pdfPreviewSource"
               :source="pdfPreviewSource"
               :page="currentPage"
-              :width="640"
+              :width="PREVIEW_WIDTH"
               @loaded="onPdfLoaded"
             />
           </div>
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
       </div>
 
@@ -332,6 +389,7 @@ onBeforeUnmount(() => {
           <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
             <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
           </div>
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
       </div>
 
@@ -345,7 +403,12 @@ onBeforeUnmount(() => {
             <span class="pptx-slide-viewer__hint">슬라이드를 클릭하면 오른쪽에 크게 표시됩니다</span>
             <a-button type="primary" @click="openEnlarge">크게보기</a-button>
           </div>
-          <div ref="previewContainer" class="pptx-slide-viewer__preview" />
+          <div
+            ref="previewContainer"
+            class="pptx-slide-viewer__preview"
+            :style="{ width: previewSize.width + 'px', height: previewSize.height + 'px' }"
+          />
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
         </div>
       </div>
 
@@ -356,7 +419,7 @@ onBeforeUnmount(() => {
   <a-modal
     v-model:open="enlargeOpen"
     :title="fileName"
-    width="1160px"
+    width="1260px"
     :footer="null"
     destroy-on-close
     @cancel="closeEnlarge"
@@ -370,8 +433,9 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
-        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="1100" />
+        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="ENLARGE_WIDTH" />
       </div>
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
     <template v-else-if="fileType === 'ppt'">
       <div class="pptx-slide-viewer__enlarge-header">
@@ -384,8 +448,16 @@ onBeforeUnmount(() => {
       <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
         <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
       </div>
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
     </template>
-    <div v-else ref="enlargeContainer" class="pptx-slide-viewer__enlarge" />
+    <template v-else>
+      <div
+        ref="enlargeContainer"
+        class="pptx-slide-viewer__enlarge"
+        :style="{ width: enlargeSize.width + 'px', height: enlargeSize.height + 'px' }"
+      />
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+    </template>
   </a-modal>
 </template>
 
@@ -395,8 +467,8 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 .pptx-slide-viewer__list {
-  width: 180px;
-  max-height: 480px;
+  width: 200px;
+  max-height: 560px;
   overflow-y: auto;
   flex-shrink: 0;
   border: 1px solid #e1e0d9;
@@ -423,25 +495,27 @@ onBeforeUnmount(() => {
   color: #898781;
 }
 .pptx-slide-viewer__preview {
-  width: 640px;
-  height: 360px;
+  /* pptx는 실제 슬라이드 비율에 맞춰 width/height를 인라인 style로 계산해서 넣는다
+     (script의 previewSize) - 고정값을 주면 실제 비율과 달라 위/아래가 잘리거나
+     스크롤이 생긴다. */
   max-width: 100%;
   border: 1px solid #e1e0d9;
   border-radius: 6px;
 }
 .pptx-slide-viewer__preview--pdf {
+  width: 760px;
   height: auto;
-  max-height: 480px;
+  max-height: 560px;
   overflow: auto;
   display: flex;
   justify-content: center;
 }
 .pptx-slide-viewer__enlarge {
-  width: 1100px;
-  height: 619px;
+  /* pptx 크게보기도 마찬가지로 script의 enlargeSize를 인라인 style로 적용한다. */
   max-width: 100%;
 }
 .pptx-slide-viewer__enlarge--pdf {
+  width: 1180px;
   height: auto;
   max-height: 75vh;
   overflow: auto;
