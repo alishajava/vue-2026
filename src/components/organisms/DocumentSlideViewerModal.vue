@@ -147,10 +147,13 @@ const currentPage = ref(1)
 const totalPages = ref(1)
 
 // 좌측 목록 클릭/점 인디케이터 클릭을 타입에 상관없이 같은 방식으로 다루기 위한 공용 값.
-const dotCount = computed(() => (props.fileType === 'pptx' ? pptxSlideCount.value : totalPages.value))
-const dotActiveIndex = computed(() => (props.fileType === 'pptx' ? pptxCurrentIndex.value : currentPage.value - 1))
+// pptx라도 isImageBased(서버 변환 이미지 기반)면 ppt와 동일하게 totalPages/currentPage를 쓴다 -
+// pptxSlideCount/pptxCurrentIndex는 pptx-preview 백업 경로(isImageBased가 false일 때)에서만 갱신된다.
+const usesPptxPreviewRefs = computed(() => props.fileType === 'pptx' && !isImageBased.value)
+const dotCount = computed(() => (usesPptxPreviewRefs.value ? pptxSlideCount.value : totalPages.value))
+const dotActiveIndex = computed(() => (usesPptxPreviewRefs.value ? pptxCurrentIndex.value : currentPage.value - 1))
 function goToDot(index) {
-  if (props.fileType === 'pptx') goToSlide(index)
+  if (usesPptxPreviewRefs.value) goToSlide(index)
   else goToPage(index + 1)
 }
 
