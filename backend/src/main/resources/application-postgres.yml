@@ -1,0 +1,8 @@
+# Postgres/Docker로 돌릴 때 쓰는 프로필. 실행: java -jar app.jar --spring.profiles.active=postgres
+# (docker-compose.yml의 app 서비스는 이미 이 프로필을 자동으로 쓴다)
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/documentdb
+    driver-class-name: org.postgresql.Driver
+    username: docuser
+    password: ${DB_PASSWORD}

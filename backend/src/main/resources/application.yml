@@ -1,0 +1,31 @@
+# 기본값: 별도 DB 서버/Docker 없이 프로젝트 폴더 안 파일 하나로 동작하는 H2.
+# Postgres/Docker로 돌리고 싶으면 --spring.profiles.active=postgres 로 실행
+# (docker-compose.yml은 이미 이 프로필을 쓰도록 되어 있음. application-postgres.yml 참고)
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/documentdb;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update # 테이블을 엔티티 기준으로 자동 생성/갱신. 운영이 안정되면 flyway 등으로 바꾸는 걸 추천.
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  h2:
+    console:
+      enabled: true # http://localhost:8080/h2-console 에서 저장된 데이터를 바로 눈으로 확인 가능 (JDBC URL: 위의 spring.datasource.url과 동일)
+
+app:
+  cors:
+    # 로컬 vite dev server는 포트가 바뀔 수 있어서(5173, 5180 등) 패턴으로 허용한다.
+    # 배포된 사이트에서도 테스트하려면 콤마로 추가: "http://localhost:*,https://alishajava.github.io"
+    allowed-origin-pattern: "http://localhost:*"
+
+server:
+  port: 8080
