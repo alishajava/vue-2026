@@ -14,6 +14,11 @@ import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 import org.apache.poi.hslf.usermodel.HSLFSlide;
 import org.apache.poi.hslf.usermodel.HSLFSlideShow;
+import org.apache.poi.sl.usermodel.Shape;
+import org.apache.poi.sl.usermodel.Sheet;
+import org.apache.poi.sl.usermodel.TextParagraph;
+import org.apache.poi.sl.usermodel.TextRun;
+import org.apache.poi.sl.usermodel.TextShape;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.springframework.stereotype.Service;
@@ -39,6 +44,7 @@ public class SlideRenderService {
             Dimension pageSize = ppt.getPageSize();
             List<byte[]> result = new ArrayList<>();
             for (XSLFSlide slide : ppt.getSlides()) {
+                sanitizeLineSpacing(slide);
                 result.add(renderSlide(slide::draw, pageSize));
             }
             return result;
@@ -50,9 +56,38 @@ public class SlideRenderService {
             Dimension pageSize = ppt.getPageSize();
             List<byte[]> result = new ArrayList<>();
             for (HSLFSlide slide : ppt.getSlides()) {
+                sanitizeLineSpacing(slide);
                 result.add(renderSlide(slide::draw, pageSize));
             }
             return result;
+        }
+    }
+
+    // 문단에 폰트 크기보다 좁은 고정(포인트) 줄간격이 지정되어 있으면, 그 문단이 여러 줄로
+    // 줄바꿈될 때 POI가 줄바꿈된 다음 줄을 이전 줄과 겹쳐서 그린다(실제 재현 확인 - 원본
+    // 파워포인트에서는 정상으로 보이던 슬라이드가 이 변환에서만 글자가 겹쳐 보였다).
+    // getLineSpacing()은 양수면 %(비율), 음수면 고정 포인트를 의미한다 - 고정 포인트 값의
+    // 절대값이 그 문단에서 쓰인 폰트 크기보다 작으면 100%(줄 높이 기준 표준 간격)로 덮어써서
+    // 겹침을 막는다.
+    private static <S extends Shape<S, P>, P extends TextParagraph<S, P, ? extends TextRun>> void sanitizeLineSpacing(
+            Sheet<S, P> sheet) {
+        for (S shape : sheet.getShapes()) {
+            if (!(shape instanceof TextShape)) continue;
+            @SuppressWarnings("unchecked")
+            TextShape<S, P> textShape = (TextShape<S, P>) shape;
+            for (P paragraph : textShape.getTextParagraphs()) {
+                Double lineSpacing = paragraph.getLineSpacing();
+                if (lineSpacing == null || lineSpacing >= 0) continue;
+                double maxFontSize = 12.0;
+                for (TextRun run : paragraph.getTextRuns()) {
+                    if (run.getFontSize() != null) {
+                        maxFontSize = Math.max(maxFontSize, run.getFontSize());
+                    }
+                }
+                if (Math.abs(lineSpacing) < maxFontSize) {
+                    paragraph.setLineSpacing(100.0);
+                }
+            }
         }
     }
 
