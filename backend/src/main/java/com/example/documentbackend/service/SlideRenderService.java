@@ -19,6 +19,8 @@ import org.apache.poi.hslf.usermodel.HSLFSlide;
 import org.apache.poi.hslf.usermodel.HSLFSlideShow;
 import org.apache.poi.sl.usermodel.Shape;
 import org.apache.poi.sl.usermodel.Sheet;
+import org.apache.poi.sl.usermodel.TableCell;
+import org.apache.poi.sl.usermodel.TableShape;
 import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextRun;
 import org.apache.poi.sl.usermodel.TextShape;
@@ -105,10 +107,7 @@ public class SlideRenderService {
     private static <S extends Shape<S, P>, P extends TextParagraph<S, P, ? extends TextRun>> void sanitizeFonts(
             Sheet<S, P> sheet) {
         if (FALLBACK_FONT_FAMILY == null) return;
-        for (S shape : sheet.getShapes()) {
-            if (!(shape instanceof TextShape)) continue;
-            @SuppressWarnings("unchecked")
-            TextShape<S, P> textShape = (TextShape<S, P>) shape;
+        forEachTextShape(sheet, textShape -> {
             for (P paragraph : textShape.getTextParagraphs()) {
                 for (TextRun run : paragraph.getTextRuns()) {
                     String text = run.getRawText();
@@ -120,6 +119,32 @@ public class SlideRenderService {
                         run.setFontFamily(FALLBACK_FONT_FAMILY);
                     }
                 }
+            }
+        });
+    }
+
+    // 표(테이블) 안 셀의 텍스트가 계속 네모박스로 깨지는 문제의 원인 - XSLFTable/HSLFTable은
+    // TextShape가 아니라 TableShape라서, 슬라이드의 도형 목록(getShapes())을 TextShape
+    // 기준으로만 훑던 기존 로직(sanitizeFonts/sanitizeLineSpacing)이 표 전체를 건너뛰고
+    // 있었다(실제 재현 확인 - 표 밖 텍스트는 고쳐졌는데 표 안 텍스트만 계속 깨져 보였다).
+    // 표를 만나면 각 셀(TableCell도 TextShape의 일종)을 펼쳐서 같은 로직을 적용한다 -
+    // 병합된 셀의 "이어지는" 칸은 getCell()이 null을 반환하므로 건너뛴다.
+    private static <S extends Shape<S, P>, P extends TextParagraph<S, P, ? extends TextRun>> void forEachTextShape(
+            Sheet<S, P> sheet, java.util.function.Consumer<TextShape<S, P>> action) {
+        for (S shape : sheet.getShapes()) {
+            if (shape instanceof TableShape) {
+                @SuppressWarnings("unchecked")
+                TableShape<S, P> table = (TableShape<S, P>) shape;
+                for (int r = 0; r < table.getNumberOfRows(); r++) {
+                    for (int c = 0; c < table.getNumberOfColumns(); c++) {
+                        TableCell<S, P> cell = table.getCell(r, c);
+                        if (cell != null) action.accept(cell);
+                    }
+                }
+            } else if (shape instanceof TextShape) {
+                @SuppressWarnings("unchecked")
+                TextShape<S, P> textShape = (TextShape<S, P>) shape;
+                action.accept(textShape);
             }
         }
     }
@@ -133,10 +158,7 @@ public class SlideRenderService {
     // 넓게 잡은 간격은 그대로 둔다.
     private static <S extends Shape<S, P>, P extends TextParagraph<S, P, ? extends TextRun>> void sanitizeLineSpacing(
             Sheet<S, P> sheet) {
-        for (S shape : sheet.getShapes()) {
-            if (!(shape instanceof TextShape)) continue;
-            @SuppressWarnings("unchecked")
-            TextShape<S, P> textShape = (TextShape<S, P>) shape;
+        forEachTextShape(sheet, textShape -> {
             for (P paragraph : textShape.getTextParagraphs()) {
                 Double lineSpacing = paragraph.getLineSpacing();
                 if (lineSpacing == null) continue;
@@ -158,7 +180,7 @@ public class SlideRenderService {
                     paragraph.setLineSpacing(100.0);
                 }
             }
-        }
+        });
     }
 
     private byte[] renderSlide(Consumer<Graphics2D> drawFn, Dimension pageSize) throws IOException {
