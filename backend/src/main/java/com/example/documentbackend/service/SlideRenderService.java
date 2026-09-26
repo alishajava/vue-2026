@@ -48,13 +48,22 @@ public class SlideRenderService {
 
     private static String loadFallbackFont() {
         try (InputStream in = SlideRenderService.class.getResourceAsStream("/fonts/NotoSansKR-Regular.ttf")) {
+            if (in == null) {
+                System.err.println("[SlideRenderService] 한글 대체 폰트 리소스를 찾을 수 없습니다"
+                        + "(/fonts/NotoSansKR-Regular.ttf) - 호스트 기본 폰트로 대체됩니다.");
+                return null;
+            }
             Font font = Font.createFont(Font.TRUETYPE_FONT, in);
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
+            System.out.println("[SlideRenderService] 한글 대체 폰트 등록 완료: family=" + font.getFamily()
+                    + ", canDisplay('가')=" + font.canDisplay('가'));
             return font.getFamily();
         } catch (IOException | FontFormatException | RuntimeException e) {
             // 폰트 로딩 자체가 실패해도 변환 기능은 계속 동작해야 한다 - 이 경우 호스트의
-            // 기본 폰트 대체에 맡긴다(등록 전과 동일한 동작).
-            System.err.println("한글 대체 폰트 로딩 실패 - 호스트 기본 폰트로 대체됩니다: " + e);
+            // 기본 폰트 대체에 맡긴다(등록 전과 동일한 동작). 파일이 깨져있으면(예: Windows
+            // Git의 줄바꿈 자동 변환으로 바이너리 폰트 파일이 손상된 경우) 보통 여기서
+            // FontFormatException이 난다.
+            System.err.println("[SlideRenderService] 한글 대체 폰트 로딩 실패 - 호스트 기본 폰트로 대체됩니다: " + e);
             return null;
         }
     }

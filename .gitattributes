@@ -1,0 +1,17 @@
+# 바이너리 파일은 명시적으로 표시해둔다 - 그렇지 않으면 일부 Windows Git 설정
+# (core.autocrlf=true)에서 줄바꿈 변환 대상으로 오인되어 체크아웃 시 파일이
+# 손상될 수 있다 (실제로 한글 폰트(.ttf)가 이 문제로 깨졌을 가능성 확인 중).
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.pptx binary
+*.ppt binary
+*.pdf binary
