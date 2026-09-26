@@ -63,12 +63,13 @@ public class SlideRenderService {
         }
     }
 
-    // 문단에 폰트 크기보다 좁은 고정(포인트) 줄간격이 지정되어 있으면, 그 문단이 여러 줄로
-    // 줄바꿈될 때 POI가 줄바꿈된 다음 줄을 이전 줄과 겹쳐서 그린다(실제 재현 확인 - 원본
-    // 파워포인트에서는 정상으로 보이던 슬라이드가 이 변환에서만 글자가 겹쳐 보였다).
-    // getLineSpacing()은 양수면 %(비율), 음수면 고정 포인트를 의미한다 - 고정 포인트 값의
-    // 절대값이 그 문단에서 쓰인 폰트 크기보다 작으면 100%(줄 높이 기준 표준 간격)로 덮어써서
-    // 겹침을 막는다.
+    // 문단의 줄간격이 너무 좁으면(폰트 크기보다 좁은 고정 포인트 값이거나, 100% 미만인
+    // 비율 값) 그 문단이 여러 줄로 줄바꿈되거나 다음 문단과 인접할 때 POI가 줄들을 서로
+    // 겹쳐서 그린다(실제 재현 확인 - 원본 파워포인트에서는 정상으로 보이던 슬라이드가 이
+    // 변환에서만 글자가 겹쳐 보였다. 고정 포인트/비율 두 경우 모두에서 재현됨).
+    // getLineSpacing()은 양수면 %(비율), 음수면 고정 포인트를 의미한다 - 두 경우 모두
+    // 표준 줄 높이보다 좁으면 100%로 덮어써서 겹침을 막는다. 100% 이상으로 의도적으로
+    // 넓게 잡은 간격은 그대로 둔다.
     private static <S extends Shape<S, P>, P extends TextParagraph<S, P, ? extends TextRun>> void sanitizeLineSpacing(
             Sheet<S, P> sheet) {
         for (S shape : sheet.getShapes()) {
@@ -77,7 +78,15 @@ public class SlideRenderService {
             TextShape<S, P> textShape = (TextShape<S, P>) shape;
             for (P paragraph : textShape.getTextParagraphs()) {
                 Double lineSpacing = paragraph.getLineSpacing();
-                if (lineSpacing == null || lineSpacing >= 0) continue;
+                if (lineSpacing == null) continue;
+                if (lineSpacing >= 0) {
+                    // 비율(%) 값 - 100% 미만이면 줄들이 서로 겹칠 수 있다.
+                    if (lineSpacing < 100.0) {
+                        paragraph.setLineSpacing(100.0);
+                    }
+                    continue;
+                }
+                // 고정 포인트 값 - 그 문단에서 쓰인 폰트 크기보다 좁으면 겹칠 수 있다.
                 double maxFontSize = 12.0;
                 for (TextRun run : paragraph.getTextRuns()) {
                     if (run.getFontSize() != null) {
