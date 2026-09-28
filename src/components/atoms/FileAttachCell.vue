@@ -2,14 +2,16 @@
 /**
  * atoms/FileAttachCell
  *
- * '파일첨부' 컬럼의 ag-Grid cellRenderer. 버튼 클릭 시 숨겨진 <input type="file">을
- * 대신 클릭시켜 파일 선택창을 띄우고, 선택된 파일을 그 행(row)의 데이터에 직접
- * 반영한다 (fileName/fileBuffer/registeredAt).
+ * '파일첨부' 컬럼의 ag-Grid cellRenderer. antd-vue의 <a-upload>로 파일 선택창을
+ * 띄우고, 선택된 파일을 그 행(row)의 데이터에 직접 반영한다
+ * (fileName/fileBuffer/registeredAt). 서버로 실제 업로드하는 게 아니라 파일을
+ * 읽어서 그리드 상태에만 반영하는 용도라, before-upload에서 항상 false를 반환해
+ * <a-upload>의 자체 업로드 동작(HTTP 요청)은 막는다.
  *
  * ag-Grid cellRenderer는 메인 앱 트리 밖에서 별도로 마운트되어 <style scoped>가
- * 적용되지 않는다 - 여기서는 antd-vue 전역 컴포넌트(a-button)만 써서 이 문제를 피한다.
+ * 적용되지 않는다 - 여기서는 antd-vue 전역 컴포넌트(a-upload/a-button)만 써서 이
+ * 문제를 피한다.
  */
-import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 
 const props = defineProps({
@@ -19,22 +21,11 @@ const props = defineProps({
   },
 })
 
-const fileInput = ref(null)
-
-function triggerSelect() {
-  fileInput.value?.click()
-}
-
-async function onFileChange(event) {
-  const file = event.target.files?.[0]
-  event.target.value = '' // 같은 파일을 다시 선택해도 change 이벤트가 뜨도록 초기화
-
-  if (!file) return
-
+async function handleBeforeUpload(file) {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext !== 'pptx' && ext !== 'pdf' && ext !== 'ppt') {
     message.error('.pptx, .pdf, .ppt 파일만 첨부할 수 있습니다.')
-    return
+    return false
   }
 
   const buffer = await file.arrayBuffer()
@@ -51,12 +42,15 @@ async function onFileChange(event) {
   // 안 바뀌었으니 구분 컬럼(TitleCell, fileName을 보고 "미리보기" 버튼을 표시)은
   // 그냥 두면 갱신되지 않는다. 강제로 같이 다시 그려준다.
   props.params.api.refreshCells({ columns: ['title'], force: true })
+
+  return false // 실제 업로드(HTTP 요청)는 막는다 - 파일 읽기는 이미 위에서 끝났다.
 }
 </script>
 
 <template>
   <span style="display: flex; align-items: center; height: 100%">
-    <a-button size="small" @click="triggerSelect">파일선택</a-button>
-    <input ref="fileInput" type="file" accept=".pptx,.pdf,.ppt" style="display: none" @change="onFileChange" />
+    <a-upload :show-upload-list="false" accept=".pptx,.pdf,.ppt" :before-upload="handleBeforeUpload">
+      <a-button size="small">파일선택</a-button>
+    </a-upload>
   </span>
 </template>
