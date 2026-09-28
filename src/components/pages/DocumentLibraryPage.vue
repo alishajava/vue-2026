@@ -311,6 +311,7 @@ const gridContext = { openPreview }
           :single-click-edit="true"
           dom-layout="autoHeight"
           :suppress-cell-focus="true"
+          :row-height="64"
           @grid-ready="onGridReady"
           @cell-value-changed="onCellValueChanged"
         />
