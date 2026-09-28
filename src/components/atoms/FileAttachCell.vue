@@ -6,15 +6,17 @@
  * 첨부되면 셀 전체가 그 문서의 1페이지/1슬라이드를 작게 렌더링한 썸네일로 바뀐다.
  * 마우스오버하면 반투명 오버레이와 함께 미리보기/다운로드/삭제 버튼이 뜬다.
  *
- * [썸네일을 실제로 그릴 수 있을 때 vs 아이콘으로 대체할 때]
- * row.fileBuffer가 메모리에 있을 때만(방금 첨부했거나 아직 '저장'을 안 눌러 서버에
- * 올라가지 않은 상태) 실제 내용을 렌더링한다 - pdf는 vue-pdf-embed, pptx는
- * pptx-preview를 셀 크기에 맞춰 작게 띄우고, ppt(구버전)는 브라우저에서 못 읽으므로
- * convertToSlides로 서버 변환한 첫 장 이미지를 쓴다.
- * 이미 저장된 행은 '저장' 시점에 메모리 절약을 위해 fileBuffer를 비우므로(row.fileBuffer
- * === null), 그리드를 열 때마다 저장된 행 전부에 대해 서버로 파일을 통째로 다시
- * 받아오거나(pdf/pptx) POI 변환을 새로 돌리는(ppt) 건 낭비가 크다 - 이 경우는 그냥
- * 파일 형식을 나타내는 작은 아이콘으로 대체한다.
+ * [썸네일 소스: 메모리 버퍼 vs 서버 재조회]
+ * row.fileBuffer가 메모리에 있으면(방금 첨부했거나 아직 '저장'을 안 눌러 서버에
+ * 올라가지 않은 상태) 그 버퍼로 바로 렌더링한다. 이미 저장된 행은 '저장' 시점에
+ * 메모리 절약을 위해 fileBuffer를 비우므로(row.fileBuffer === null), 이 경우
+ * row.id로 서버에서 파일을 다시 받아와(pdf/pptx는 fetchDocumentFile, ppt는 저장된
+ * 바이트를 그대로 변환하는 fetchDocumentSlides) 렌더링한다 - 셀이 새로 마운트될
+ * 때마다(예: 다른 행 첨부로 인한 강제 리프레시) 매번 다시 받아오긴 하지만, attach
+ * 컬럼 리프레시는 해당 행에만 scope했으므로(rowNodes) 관계없는 행까지 재조회하진
+ * 않는다. pdf는 vue-pdf-embed, pptx는 pptx-preview를 셀 크기에 맞춰 작게 띄우고,
+ * ppt(구버전)는 브라우저에서 못 읽으므로 서버 변환 첫 장 이미지를 쓴다. 조회/렌더링에
+ * 실패하면 파일 형식을 나타내는 작은 아이콘으로 대체한다.
  *
  * ag-Grid cellRenderer는 메인 앱 트리 밖에서 별도로 마운트되어 <style scoped>가
  * 적용되지 않는다 - 여기서는 antd-vue 전역 컴포넌트만 쓰고, 이 파일만의 고유 클래스는
@@ -24,7 +26,7 @@ import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount } from 'vue
 import { Modal, message } from 'ant-design-vue'
 import { init as initPptxPreview } from 'pptx-preview'
 import VuePdfEmbed from 'vue-pdf-embed'
-import { deleteDocument, fetchDocumentFile, convertToSlides } from '../../api/documentApi'
+import { deleteDocument, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 
 const props = defineProps({
@@ -60,7 +62,11 @@ async function handleBeforeUpload(file) {
   // attach 컬럼도 마찬가지: field: 'attach'에 대응하는 row.attach라는 데이터가 실제로는
   // 없으므로, 이 컬럼 자신도 자동 변경 감지 대상이 아니다 - 강제로 다시 그려야 이
   // FileAttachCell 인스턴스가 새로 만들어지고(파일선택 버튼 -> 썸네일) 렌더링된다.
-  props.params.api.refreshCells({ columns: ['title', 'attach'], force: true })
+  // attach는 이 행에만 rowNodes로 scope한다 - 저장된 다른 행들은 썸네일을 서버에서
+  // 다시 받아와야 하므로, scope 없이 전체를 강제 리프레시하면 관계없는 행들까지
+  // 불필요하게 재조회하게 된다.
+  props.params.api.refreshCells({ columns: ['title'], force: true })
+  props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['attach'], force: true })
 
   return false // 실제 업로드(HTTP 요청)는 막는다 - 파일 읽기는 이미 위에서 끝났다.
 }
@@ -73,7 +79,8 @@ let pptxThumbViewer = null
 
 const hasFile = computed(() => !!props.params.data.fileName)
 const fileType = computed(() => props.params.data.fileType)
-const hasBufferInMemory = computed(() => !!props.params.data.fileBuffer)
+const isLoadingThumb = ref(false)
+const thumbLoadFailed = ref(false)
 
 function cleanupThumb() {
   pptxThumbViewer = null
@@ -82,34 +89,70 @@ function cleanupThumb() {
   pptThumbImage.value = ''
 }
 
+// 렌더링을 시작하는 시점의 row.id를 기억해서, 서버 응답이 늦게 도착했을 때 그 사이
+// 다른 파일로 다시 첨부되었거나 행이 삭제된 경우 결과를 버리기 위한 용도.
 async function renderThumbnail() {
   cleanupThumb()
+  thumbLoadFailed.value = false
   const row = props.params.data
-  if (!row.fileBuffer) return // 저장된 행(버퍼 없음)은 아이콘으로 대체
+  const requestId = row.id
+  if (!row.fileName) return
+  if (!row.fileBuffer && !row.id) return // 버퍼도 없고 저장도 안 된 상태(있을 수 없지만 방어적으로)
+
+  // ppt는 pdf/pptx와 달리 원본 바이트 자체를 브라우저에서 못 쓰므로, 저장된 행이면
+  // 파일을 통째로 받아올 필요 없이 이미 서버가 들고 있는 바이트를 그대로 변환하는
+  // fetchDocumentSlides 하나만 호출한다.
+  if (row.fileType === 'ppt') {
+    isLoadingThumb.value = !row.fileBuffer
+    try {
+      const images = row.fileBuffer
+        ? await convertToSlides({ fileBase64: await arrayBufferToBase64(row.fileBuffer.slice(0)), fileType: 'ppt' })
+        : await fetchDocumentSlides(row.id)
+      isLoadingThumb.value = false
+      if (props.params.data.id !== requestId) return // 그 사이 다른 행/파일로 바뀌었으면 버린다.
+      pptThumbImage.value = images?.[0] || ''
+    } catch (err) {
+      isLoadingThumb.value = false
+      console.error('ppt 썸네일 변환 실패', err)
+      thumbLoadFailed.value = true
+    }
+    return
+  }
+
+  let buffer = row.fileBuffer
+  if (!buffer) {
+    // 저장된 행 - 메모리에 원본이 없으니 서버에서 다시 받아온다.
+    isLoadingThumb.value = true
+    try {
+      const base64 = await fetchDocumentFile(row.id)
+      buffer = await base64ToArrayBuffer(base64)
+    } catch (err) {
+      console.error('첨부파일 조회 실패', err)
+      thumbLoadFailed.value = true
+      isLoadingThumb.value = false
+      return
+    }
+    isLoadingThumb.value = false
+    // 응답이 오는 동안 이 셀이 다른 행/다른 파일을 가리키게 됐으면 결과를 버린다.
+    if (props.params.data.id !== requestId || props.params.data.fileBuffer) return
+  }
 
   if (row.fileType === 'pdf') {
-    pdfThumbSource.value = row.fileBuffer.slice(0)
+    pdfThumbSource.value = buffer.slice(0)
   } else if (row.fileType === 'pptx') {
     await nextTick()
     if (!thumbContainer.value) return
     try {
       pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, mode: 'slide' })
-      await pptxThumbViewer.preview(row.fileBuffer.slice(0))
+      await pptxThumbViewer.preview(buffer.slice(0))
     } catch (err) {
       console.error('pptx 썸네일 렌더링 실패', err)
-    }
-  } else if (row.fileType === 'ppt') {
-    try {
-      const fileBase64 = await arrayBufferToBase64(row.fileBuffer.slice(0))
-      const images = await convertToSlides({ fileBase64, fileType: 'ppt' })
-      pptThumbImage.value = images?.[0] || ''
-    } catch (err) {
-      console.error('ppt 썸네일 변환 실패', err)
+      thumbLoadFailed.value = true
     }
   }
 }
 
-// 파일이 (재)첨부될 때마다 다시 그린다 - fileBuffer/fileType이 같이 바뀌므로 이 둘을 감시.
+// 파일이 (재)첨부될 때마다, 또는 셀이 새로 마운트될 때(저장된 행) 다시 그린다.
 watch(() => [props.params.data.fileBuffer, props.params.data.fileType], renderThumbnail, { immediate: true })
 
 onBeforeUnmount(cleanupThumb)
@@ -177,9 +220,10 @@ function removeRow() {
       class="file-thumb"
       :style="{ width: THUMB_WIDTH + 'px', height: THUMB_HEIGHT + 'px' }"
     >
-      <VuePdfEmbed v-if="fileType === 'pdf' && pdfThumbSource" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
-      <div v-else-if="fileType === 'pptx'" ref="thumbContainer" class="file-thumb__pptx" />
-      <img v-else-if="fileType === 'ppt' && pptThumbImage" :src="pptThumbImage" class="file-thumb__img" />
+      <a-spin v-if="isLoadingThumb" size="small" />
+      <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
+      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" class="file-thumb__pptx" />
+      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" class="file-thumb__img" />
       <div v-else class="file-thumb__icon">{{ (fileType || '').toUpperCase() }}</div>
 
       <div class="file-thumb__overlay">
