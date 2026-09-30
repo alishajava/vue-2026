@@ -1,3 +1,15 @@
+<template>
+  <a-card :bordered="true" class="base-card" :body-style="bodyStyle">
+    <template v-if="title || $slots.extra" #title>
+      <span class="base-card__title">{{ title }}</span>
+    </template>
+    <template v-if="$slots.extra" #extra>
+      <slot name="extra" />
+    </template>
+    <slot />
+  </a-card>
+</template>
+
 <script setup>
 /**
  * atoms/BaseCard
@@ -14,18 +26,6 @@ defineProps({
   },
 })
 </script>
-
-<template>
-  <a-card :bordered="true" class="base-card" :body-style="bodyStyle">
-    <template v-if="title || $slots.extra" #title>
-      <span class="base-card__title">{{ title }}</span>
-    </template>
-    <template v-if="$slots.extra" #extra>
-      <slot name="extra" />
-    </template>
-    <slot />
-  </a-card>
-</template>
 
 <style scoped>
 .base-card {

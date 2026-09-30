@@ -1,3 +1,24 @@
+<template>
+  <button
+    type="button"
+    class="slide-nav-arrow slide-nav-arrow--prev"
+    :disabled="disabledPrev"
+    aria-label="이전 슬라이드"
+    @click="emit('prev')"
+  >
+    <span class="slide-nav-arrow__chevron slide-nav-arrow__chevron--left" />
+  </button>
+  <button
+    type="button"
+    class="slide-nav-arrow slide-nav-arrow--next"
+    :disabled="disabledNext"
+    aria-label="다음 슬라이드"
+    @click="emit('next')"
+  >
+    <span class="slide-nav-arrow__chevron slide-nav-arrow__chevron--right" />
+  </button>
+</template>
+
 <script setup>
 /**
  * atoms/SlideNavArrows
@@ -26,27 +47,6 @@ defineProps({
 
 const emit = defineEmits(['prev', 'next'])
 </script>
-
-<template>
-  <button
-    type="button"
-    class="slide-nav-arrow slide-nav-arrow--prev"
-    :disabled="disabledPrev"
-    aria-label="이전 슬라이드"
-    @click="emit('prev')"
-  >
-    <span class="slide-nav-arrow__chevron slide-nav-arrow__chevron--left" />
-  </button>
-  <button
-    type="button"
-    class="slide-nav-arrow slide-nav-arrow--next"
-    :disabled="disabledNext"
-    aria-label="다음 슬라이드"
-    @click="emit('next')"
-  >
-    <span class="slide-nav-arrow__chevron slide-nav-arrow__chevron--right" />
-  </button>
-</template>
 
 <style scoped>
 .slide-nav-arrow {

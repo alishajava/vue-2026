@@ -1,3 +1,35 @@
+<template>
+  <span style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%">
+    <a-upload v-if="!hasFile" :show-upload-list="false" accept=".pptx,.pdf,.ppt" :before-upload="handleBeforeUpload">
+      <a-button size="small">파일선택</a-button>
+    </a-upload>
+
+    <div
+      v-else
+      class="file-thumb"
+      :style="{ width: THUMB_WIDTH + 'px', height: THUMB_HEIGHT + 'px' }"
+    >
+      <a-spin v-if="isLoadingThumb" size="small" />
+      <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
+      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" class="file-thumb__pptx" />
+      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" class="file-thumb__img" />
+      <div v-else class="file-thumb__icon">{{ (fileType || '').toUpperCase() }}</div>
+
+      <div class="file-thumb__overlay">
+        <a-tooltip title="미리보기">
+          <a-button size="small" shape="circle" @click.stop="openPreview">👁</a-button>
+        </a-tooltip>
+        <a-tooltip title="다운로드">
+          <a-button size="small" shape="circle" @click.stop="download">⬇</a-button>
+        </a-tooltip>
+        <a-tooltip title="삭제">
+          <a-button size="small" shape="circle" danger @click.stop="removeRow">✕</a-button>
+        </a-tooltip>
+      </div>
+    </div>
+  </span>
+</template>
+
 <script setup>
 /**
  * atoms/FileAttachCell
@@ -56,16 +88,13 @@ async function handleBeforeUpload(file) {
   if (row.status === 'saved') row.status = 'dirty'
   // row 객체를 직접 변형했으므로, ag-Grid에게 그 행의 셀을 다시 그리라고 알려준다.
   props.params.api.applyTransaction({ update: [row] })
-  // applyTransaction은 컬럼별로 "바뀐 필드"만 골라서 다시 그린다 - title 필드 자체는
-  // 안 바뀌었으니 구분 컬럼(TitleCell, fileName을 보고 "미리보기" 버튼을 표시)은
-  // 그냥 두면 갱신되지 않는다. 강제로 같이 다시 그려준다.
-  // attach 컬럼도 마찬가지: field: 'attach'에 대응하는 row.attach라는 데이터가 실제로는
-  // 없으므로, 이 컬럼 자신도 자동 변경 감지 대상이 아니다 - 강제로 다시 그려야 이
-  // FileAttachCell 인스턴스가 새로 만들어지고(파일선택 버튼 -> 썸네일) 렌더링된다.
-  // attach는 이 행에만 rowNodes로 scope한다 - 저장된 다른 행들은 썸네일을 서버에서
-  // 다시 받아와야 하므로, scope 없이 전체를 강제 리프레시하면 관계없는 행들까지
+  // applyTransaction은 컬럼별로 "바뀐 필드"만 골라서 다시 그린다 - attach 컬럼은
+  // field: 'attach'에 대응하는 row.attach라는 데이터가 실제로는 없으므로, 이 컬럼
+  // 자신은 자동 변경 감지 대상이 아니다. 강제로 다시 그려야 이 FileAttachCell
+  // 인스턴스가 새로 만들어지고(파일선택 버튼 -> 썸네일) 렌더링된다.
+  // 이 행에만 rowNodes로 scope한다 - 저장된 다른 행들은 썸네일을 서버에서 다시
+  // 받아와야 하므로, scope 없이 전체를 강제 리프레시하면 관계없는 행들까지
   // 불필요하게 재조회하게 된다.
-  props.params.api.refreshCells({ columns: ['title'], force: true })
   props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['attach'], force: true })
 
   return false // 실제 업로드(HTTP 요청)는 막는다 - 파일 읽기는 이미 위에서 끝났다.
@@ -208,38 +237,6 @@ function removeRow() {
   })
 }
 </script>
-
-<template>
-  <span style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%">
-    <a-upload v-if="!hasFile" :show-upload-list="false" accept=".pptx,.pdf,.ppt" :before-upload="handleBeforeUpload">
-      <a-button size="small">파일선택</a-button>
-    </a-upload>
-
-    <div
-      v-else
-      class="file-thumb"
-      :style="{ width: THUMB_WIDTH + 'px', height: THUMB_HEIGHT + 'px' }"
-    >
-      <a-spin v-if="isLoadingThumb" size="small" />
-      <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
-      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" class="file-thumb__pptx" />
-      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" class="file-thumb__img" />
-      <div v-else class="file-thumb__icon">{{ (fileType || '').toUpperCase() }}</div>
-
-      <div class="file-thumb__overlay">
-        <a-tooltip title="미리보기">
-          <a-button size="small" shape="circle" @click.stop="openPreview">👁</a-button>
-        </a-tooltip>
-        <a-tooltip title="다운로드">
-          <a-button size="small" shape="circle" @click.stop="download">⬇</a-button>
-        </a-tooltip>
-        <a-tooltip title="삭제">
-          <a-button size="small" shape="circle" danger @click.stop="removeRow">✕</a-button>
-        </a-tooltip>
-      </div>
-    </div>
-  </span>
-</template>
 
 <style scoped>
 .file-thumb {

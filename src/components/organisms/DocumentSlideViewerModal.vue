@@ -1,3 +1,164 @@
+<template>
+  <a-modal
+    :open="open"
+    :title="fileName"
+    width="1040px"
+    :footer="null"
+    destroy-on-close
+    @update:open="(val) => emit('update:open', val)"
+    @cancel="closeMain"
+  >
+    <a-spin :spinning="loading">
+      <div v-if="fileType === 'pdf'" class="pptx-slide-viewer">
+        <div class="pptx-slide-viewer__list">
+          <VuePdfEmbed
+            v-if="pdfListSource"
+            id="pdf-list-page"
+            :source="pdfListSource"
+            :width="LIST_CONTENT_WIDTH"
+            @rendered="
+              () => {
+                highlightPdfPage(currentPage)
+                attachPdfPageClicks()
+              }
+            "
+          >
+            <template #after-page="{ page }">
+              <div
+                class="pdf-page-caption"
+                :class="{ 'pdf-page-caption--active': page === currentPage }"
+                @click="goToPage(page)"
+              >
+                {{ page }}페이지
+              </div>
+            </template>
+          </VuePdfEmbed>
+        </div>
+
+        <div class="pptx-slide-viewer__main">
+          <div class="pptx-slide-viewer__main-header">
+            <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}페이지</span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+          </div>
+          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
+            <VuePdfEmbed
+              v-if="pdfPreviewSource"
+              :source="pdfPreviewSource"
+              :page="currentPage"
+              :width="PREVIEW_WIDTH"
+              @loaded="onPdfLoaded"
+            />
+            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
+          </div>
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+        </div>
+      </div>
+
+      <div v-else-if="isImageBased" class="pptx-slide-viewer">
+        <div class="pptx-slide-viewer__list">
+          <img
+            v-for="(src, idx) in slideImages"
+            :key="idx"
+            :src="src"
+            class="ppt-slide-thumb"
+            :class="{ 'ppt-slide-thumb--active': idx + 1 === currentPage }"
+            @click="goToPage(idx + 1)"
+          />
+        </div>
+
+        <div class="pptx-slide-viewer__main">
+          <div class="pptx-slide-viewer__main-header">
+            <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+          </div>
+          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
+            <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
+            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
+          </div>
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+        </div>
+      </div>
+
+      <div v-else class="pptx-slide-viewer">
+        <div class="pptx-slide-viewer__list">
+          <p v-if="listFailed" class="pptx-slide-viewer__list-fallback">슬라이드 목록을 표시할 수 없습니다.</p>
+          <div v-show="!listFailed" ref="listContainer" />
+        </div>
+        <div class="pptx-slide-viewer__main">
+          <div class="pptx-slide-viewer__main-header">
+            <span class="pptx-slide-viewer__hint">{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
+            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
+          </div>
+          <div
+            ref="previewContainer"
+            class="pptx-slide-viewer__preview"
+            :style="{ width: previewSize.width + 'px', height: previewSize.height + 'px' }"
+          >
+            <SlideNavArrows
+              :disabled-prev="pptxCurrentIndex <= 0"
+              :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
+              @prev="pptxPrev"
+              @next="pptxNext"
+            />
+          </div>
+          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+        </div>
+      </div>
+
+      <a-alert v-if="error || loadError" class="pptx-slide-viewer__alert" type="error" show-icon :message="error || loadError" />
+    </a-spin>
+  </a-modal>
+
+  <a-modal
+    v-model:open="enlargeOpen"
+    :title="fileName"
+    width="1260px"
+    :footer="null"
+    destroy-on-close
+    centered
+    @cancel="closeEnlarge"
+  >
+    <template v-if="fileType === 'pdf'">
+      <div class="pptx-slide-viewer__enlarge-header">
+        <span>{{ currentPage }} / {{ totalPages }}페이지</span>
+      </div>
+      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
+        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="ENLARGE_WIDTH" />
+        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
+      </div>
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+    </template>
+    <template v-else-if="isImageBased">
+      <div class="pptx-slide-viewer__enlarge-header">
+        <span>{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
+      </div>
+      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
+        <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
+        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
+      </div>
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+    </template>
+    <template v-else>
+      <div class="pptx-slide-viewer__enlarge-header">
+        <span>{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
+      </div>
+      <div
+        ref="enlargeContainer"
+        class="pptx-slide-viewer__enlarge"
+        :style="{ width: enlargeSize.width + 'px', height: enlargeSize.height + 'px' }"
+      >
+        <SlideNavArrows
+          :disabled-prev="pptxCurrentIndex <= 0"
+          :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
+          @prev="pptxPrev"
+          @next="pptxNext"
+        />
+      </div>
+      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
+    </template>
+  </a-modal>
+</template>
+
 <script setup>
 /**
  * organisms/DocumentSlideViewerModal
@@ -482,167 +643,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>
-
-<template>
-  <a-modal
-    :open="open"
-    :title="fileName"
-    width="1040px"
-    :footer="null"
-    destroy-on-close
-    @update:open="(val) => emit('update:open', val)"
-    @cancel="closeMain"
-  >
-    <a-spin :spinning="loading">
-      <div v-if="fileType === 'pdf'" class="pptx-slide-viewer">
-        <div class="pptx-slide-viewer__list">
-          <VuePdfEmbed
-            v-if="pdfListSource"
-            id="pdf-list-page"
-            :source="pdfListSource"
-            :width="LIST_CONTENT_WIDTH"
-            @rendered="
-              () => {
-                highlightPdfPage(currentPage)
-                attachPdfPageClicks()
-              }
-            "
-          >
-            <template #after-page="{ page }">
-              <div
-                class="pdf-page-caption"
-                :class="{ 'pdf-page-caption--active': page === currentPage }"
-                @click="goToPage(page)"
-              >
-                {{ page }}페이지
-              </div>
-            </template>
-          </VuePdfEmbed>
-        </div>
-
-        <div class="pptx-slide-viewer__main">
-          <div class="pptx-slide-viewer__main-header">
-            <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}페이지</span>
-            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-          </div>
-          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
-            <VuePdfEmbed
-              v-if="pdfPreviewSource"
-              :source="pdfPreviewSource"
-              :page="currentPage"
-              :width="PREVIEW_WIDTH"
-              @loaded="onPdfLoaded"
-            />
-            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
-          </div>
-          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-        </div>
-      </div>
-
-      <div v-else-if="isImageBased" class="pptx-slide-viewer">
-        <div class="pptx-slide-viewer__list">
-          <img
-            v-for="(src, idx) in slideImages"
-            :key="idx"
-            :src="src"
-            class="ppt-slide-thumb"
-            :class="{ 'ppt-slide-thumb--active': idx + 1 === currentPage }"
-            @click="goToPage(idx + 1)"
-          />
-        </div>
-
-        <div class="pptx-slide-viewer__main">
-          <div class="pptx-slide-viewer__main-header">
-            <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
-            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-          </div>
-          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
-            <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
-            <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
-          </div>
-          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-        </div>
-      </div>
-
-      <div v-else class="pptx-slide-viewer">
-        <div class="pptx-slide-viewer__list">
-          <p v-if="listFailed" class="pptx-slide-viewer__list-fallback">슬라이드 목록을 표시할 수 없습니다.</p>
-          <div v-show="!listFailed" ref="listContainer" />
-        </div>
-        <div class="pptx-slide-viewer__main">
-          <div class="pptx-slide-viewer__main-header">
-            <span class="pptx-slide-viewer__hint">{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
-            <a-button type="primary" @click="openEnlarge">크게보기</a-button>
-          </div>
-          <div
-            ref="previewContainer"
-            class="pptx-slide-viewer__preview"
-            :style="{ width: previewSize.width + 'px', height: previewSize.height + 'px' }"
-          >
-            <SlideNavArrows
-              :disabled-prev="pptxCurrentIndex <= 0"
-              :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
-              @prev="pptxPrev"
-              @next="pptxNext"
-            />
-          </div>
-          <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-        </div>
-      </div>
-
-      <a-alert v-if="error || loadError" class="pptx-slide-viewer__alert" type="error" show-icon :message="error || loadError" />
-    </a-spin>
-  </a-modal>
-
-  <a-modal
-    v-model:open="enlargeOpen"
-    :title="fileName"
-    width="1260px"
-    :footer="null"
-    destroy-on-close
-    centered
-    @cancel="closeEnlarge"
-  >
-    <template v-if="fileType === 'pdf'">
-      <div class="pptx-slide-viewer__enlarge-header">
-        <span>{{ currentPage }} / {{ totalPages }}페이지</span>
-      </div>
-      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
-        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="ENLARGE_WIDTH" />
-        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
-      </div>
-      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-    </template>
-    <template v-else-if="isImageBased">
-      <div class="pptx-slide-viewer__enlarge-header">
-        <span>{{ currentPage }} / {{ totalPages }}번 슬라이드</span>
-      </div>
-      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
-        <img v-if="slideImages[currentPage - 1]" :src="slideImages[currentPage - 1]" class="ppt-slide-image" />
-        <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
-      </div>
-      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-    </template>
-    <template v-else>
-      <div class="pptx-slide-viewer__enlarge-header">
-        <span>{{ pptxCurrentIndex + 1 }} / {{ pptxSlideCount }}번 슬라이드</span>
-      </div>
-      <div
-        ref="enlargeContainer"
-        class="pptx-slide-viewer__enlarge"
-        :style="{ width: enlargeSize.width + 'px', height: enlargeSize.height + 'px' }"
-      >
-        <SlideNavArrows
-          :disabled-prev="pptxCurrentIndex <= 0"
-          :disabled-next="pptxCurrentIndex >= pptxSlideCount - 1"
-          @prev="pptxPrev"
-          @next="pptxNext"
-        />
-      </div>
-      <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
-    </template>
-  </a-modal>
-</template>
 
 <style scoped>
 .pptx-slide-viewer {

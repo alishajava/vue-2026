@@ -1,3 +1,58 @@
+<template>
+  <div class="document-library-page">
+    <div class="document-library-page__header">
+      <h1 class="document-library-page__title">PPT/PDF 자료함</h1>
+      <router-link class="document-library-page__back" to="/">← 대시보드로</router-link>
+    </div>
+
+    <BaseCard title="등록 목록">
+      <template #extra>
+        <span class="document-library-page__toolbar">
+          <a-date-picker
+            v-model:value="selectedMonth"
+            picker="month"
+            placeholder="전체 기간"
+            allow-clear
+            style="width: 140px"
+          />
+          <a-button @click="addRow">+ 행 추가</a-button>
+          <a-button type="primary" :loading="saving" @click="saveAll">저장</a-button>
+        </span>
+      </template>
+
+      <a-alert v-if="listLoadError" class="document-library-page__alert" type="warning" show-icon :message="listLoadError" />
+
+      <div class="document-library-page__grid ag-theme-alpine">
+        <AgGridVue
+          :column-defs="columnDefs"
+          :row-data="rowData"
+          :default-col-def="defaultColDef"
+          :get-row-style="getRowStyle"
+          :context="gridContext"
+          :single-click-edit="true"
+          dom-layout="autoHeight"
+          :suppress-cell-focus="true"
+          :row-height="64"
+          :is-external-filter-present="isExternalFilterPresent"
+          :does-external-filter-pass="doesExternalFilterPass"
+          @grid-ready="onGridReady"
+          @cell-value-changed="onCellValueChanged"
+        />
+      </div>
+    </BaseCard>
+
+    <DocumentSlideViewerModal
+      v-model:open="viewerOpen"
+      :file-name="viewerFileName"
+      :file-type="viewerFileType"
+      :file-buffer="viewerFileBuffer"
+      :slide-images="viewerSlideImages"
+      :loading="viewerLoading"
+      :error="viewerError"
+    />
+  </div>
+</template>
+
 <script setup>
 /**
  * pages/DocumentLibraryPage
@@ -5,7 +60,7 @@
  * PPT/PDF 자료를 행 단위로 등록/변경/삭제/숨기기 하는 그리드 화면. 대시보드/단일
  * 미리보기 페이지와는 별개의 독립 라우트(/#/documents)다.
  *
- * 컬럼: 구분(제목, 파일 첨부 시 나타나는 "미리보기" 버튼 클릭하면 팝업) / 파일첨부 / 파일명 / 등록자 / 등록일시 / 관리
+ * 컬럼: 구분(제목) / 파일첨부(첨부 시 썸네일로 바뀌고, 마우스오버하면 미리보기/다운로드/삭제) / 파일명 / 등록자 / 등록일시 / 관리
  *
  * [행 상태(status) 흐름]
  * 'new'(추가만 하고 아직 저장 안 함) -> 저장 -> 'saved'(서버에 반영됨)
@@ -25,7 +80,7 @@
  * '저장'은 gridApi.forEachNode로 현재 그리드의 모든 행을 순회해서 처리하므로,
  * rowData를 별도로 동기화해서 들고 있을 필요가 없다.
  */
-import { ref, shallowRef, onMounted } from 'vue'
+import { ref, shallowRef, onMounted, watch } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { message } from 'ant-design-vue'
 import BaseCard from '../atoms/BaseCard.vue'
@@ -73,6 +128,31 @@ const saving = ref(false)
 
 function onGridReady(event) {
   gridApi.value = event.api
+}
+
+// 년-월 선택 필터. antd의 <a-date-picker picker="month">는 값이 dayjs 객체(또는 선택 안
+// 하면 null)로 온다 - applyTransaction으로 행이 추가/삭제되는 이 그리드는 rowData를
+// 실시간으로 동기화하지 않으므로(위 JSDoc 참고), rowData를 다시 필터링해서 만드는 방식
+// 대신 ag-Grid의 외부 필터 API(isExternalFilterPresent/doesExternalFilterPass)를 쓴다 -
+// 이건 그리드가 이미 들고 있는 실제 행 집합을 대상으로 동작해서 add/remove와 무관하게
+// 항상 정확하다.
+const selectedMonth = ref(null)
+
+watch(selectedMonth, () => {
+  gridApi.value?.onFilterChanged()
+})
+
+function isExternalFilterPresent() {
+  return selectedMonth.value != null
+}
+
+function doesExternalFilterPass(node) {
+  const row = node.data
+  // 아직 저장 전(등록일시가 없거나, status가 new인) 행은 필터와 상관없이 항상 보여준다 -
+  // 방금 추가했는데 선택된 월과 안 맞는다고 화면에서 사라지면 혼란스럽다.
+  if (row.status === 'new' || !row.registeredAt) return true
+  const target = selectedMonth.value
+  return row.registeredAt.getFullYear() === target.year() && row.registeredAt.getMonth() === target.month()
 }
 
 onMounted(async () => {
@@ -226,7 +306,6 @@ const defaultColDef = {
 
 function getRowStyle(params) {
   if (params.data.hidden) return { opacity: 0.5, background: '#f5f5f5' }
-  if (params.data.status === 'new') return { background: '#e6f4ff' }
   if (params.data.status === 'dirty') return { background: '#fffbe6' }
   return null
 }
@@ -284,52 +363,6 @@ async function openPreview(row) {
 const gridContext = { openPreview }
 </script>
 
-<template>
-  <div class="document-library-page">
-    <div class="document-library-page__header">
-      <h1 class="document-library-page__title">PPT/PDF 자료함</h1>
-      <router-link class="document-library-page__back" to="/">← 대시보드로</router-link>
-    </div>
-
-    <BaseCard title="등록 목록">
-      <template #extra>
-        <span class="document-library-page__toolbar">
-          <a-button @click="addRow">+ 행 추가</a-button>
-          <a-button type="primary" :loading="saving" @click="saveAll">저장</a-button>
-        </span>
-      </template>
-
-      <a-alert v-if="listLoadError" class="document-library-page__alert" type="warning" show-icon :message="listLoadError" />
-
-      <div class="document-library-page__grid ag-theme-alpine">
-        <AgGridVue
-          :column-defs="columnDefs"
-          :row-data="rowData"
-          :default-col-def="defaultColDef"
-          :get-row-style="getRowStyle"
-          :context="gridContext"
-          :single-click-edit="true"
-          dom-layout="autoHeight"
-          :suppress-cell-focus="true"
-          :row-height="64"
-          @grid-ready="onGridReady"
-          @cell-value-changed="onCellValueChanged"
-        />
-      </div>
-    </BaseCard>
-
-    <DocumentSlideViewerModal
-      v-model:open="viewerOpen"
-      :file-name="viewerFileName"
-      :file-type="viewerFileType"
-      :file-buffer="viewerFileBuffer"
-      :slide-images="viewerSlideImages"
-      :loading="viewerLoading"
-      :error="viewerError"
-    />
-  </div>
-</template>
-
 <style scoped>
 .document-library-page {
   display: flex;
@@ -356,6 +389,7 @@ const gridContext = { openPreview }
 }
 .document-library-page__toolbar {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 .document-library-page__alert {
@@ -365,6 +399,7 @@ const gridContext = { openPreview }
   width: 100%;
   --ag-header-column-resize-handle-display: none;
   --ag-row-hover-color: #f3f2ee;
+  --ag-header-background-color: #e6f4ff;
 }
 /*
  * ag-theme-alpine의 .ag-cell은 기본이 display:inline-block이라 텍스트는 줄간격으로

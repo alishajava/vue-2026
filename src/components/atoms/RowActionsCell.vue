@@ -1,3 +1,10 @@
+<template>
+  <span style="display: flex; align-items: center; gap: 6px; height: 100%">
+    <a-button size="small" @click="toggleHidden">{{ params.data.hidden ? '숨김해제' : '숨기기' }}</a-button>
+    <a-button size="small" danger @click="deleteRow">삭제</a-button>
+  </span>
+</template>
+
 <script setup>
 /**
  * atoms/RowActionsCell
@@ -51,10 +58,3 @@ function deleteRow() {
   })
 }
 </script>
-
-<template>
-  <span style="display: flex; align-items: center; gap: 6px; height: 100%">
-    <a-button size="small" @click="toggleHidden">{{ params.data.hidden ? '숨김해제' : '숨기기' }}</a-button>
-    <a-button size="small" danger @click="deleteRow">삭제</a-button>
-  </span>
-</template>

@@ -1,3 +1,15 @@
+<template>
+  <div v-if="count > 1" class="slide-dots">
+    <span
+      v-for="i in count"
+      :key="i"
+      class="slide-dots__dot"
+      :class="{ 'slide-dots__dot--active': i - 1 === activeIndex }"
+      @click="emit('select', i - 1)"
+    />
+  </div>
+</template>
+
 <script setup>
 /**
  * atoms/SlideDotsIndicator
@@ -19,18 +31,6 @@ defineProps({
 
 const emit = defineEmits(['select'])
 </script>
-
-<template>
-  <div v-if="count > 1" class="slide-dots">
-    <span
-      v-for="i in count"
-      :key="i"
-      class="slide-dots__dot"
-      :class="{ 'slide-dots__dot--active': i - 1 === activeIndex }"
-      @click="emit('select', i - 1)"
-    />
-  </div>
-</template>
 
 <style scoped>
 .slide-dots {
