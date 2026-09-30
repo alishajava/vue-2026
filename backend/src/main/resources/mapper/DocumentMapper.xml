@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.documentbackend.mapper.DocumentMapper">
+
+    <resultMap id="documentResultMap" type="com.example.documentbackend.entity.DocumentEntity">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="fileName" column="file_name"/>
+        <result property="fileType" column="file_type"/>
+        <result property="fileData" column="file_data"/>
+        <result property="registrant" column="registrant"/>
+        <result property="registeredAt" column="registered_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="hidden" column="hidden"/>
+    </resultMap>
+
+    <!-- 목록 조회는 JPA 버전과 동일하게 file_data(바이너리)는 뺀다 -
+         모든 행의 파일을 통째로 실어나르는 낭비를 피하려고, 실제 파일은
+         /file, /slides 엔드포인트에서 그때그때 따로 조회한다. -->
+    <select id="findAll" resultMap="documentResultMap">
+        SELECT id, title, file_name, file_type, registrant, registered_at, updated_by, updated_at, hidden
+        FROM document_library
+        ORDER BY id
+    </select>
+
+    <select id="findById" resultMap="documentResultMap">
+        SELECT *
+        FROM document_library
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO document_library
+            (title, file_name, file_type, file_data, registrant, registered_at, hidden)
+        VALUES
+            (#{title}, #{fileName}, #{fileType}, #{fileData,jdbcType=BLOB}, #{registrant}, #{registeredAt}, #{hidden})
+    </insert>
+
+    <!-- fileData가 null이면(파일을 새로 첨부하지 않고 제목/등록자/숨김만 바꾼 경우)
+         기존 파일 바이트를 그대로 유지한다 - JPA 버전 DocumentController.applyRequest의
+         "fileBase64 없으면 기존 파일 유지" 로직과 동일한 동작. -->
+    <update id="update">
+        UPDATE document_library
+        <set>
+            title = #{title},
+            registrant = #{registrant},
+            hidden = #{hidden},
+            file_name = #{fileName},
+            file_type = #{fileType},
+            updated_at = #{updatedAt},
+            <if test="fileData != null">
+                file_data = #{fileData,jdbcType=BLOB},
+            </if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM document_library WHERE id = #{id}
+    </delete>
+
+</mapper>

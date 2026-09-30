@@ -7,12 +7,10 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
-  jpa:
-    hibernate:
-      ddl-auto: update # 테이블을 엔티티 기준으로 자동 생성/갱신. 운영이 안정되면 flyway 등으로 바꾸는 걸 추천.
-    properties:
-      hibernate:
-        format_sql: true
+  sql:
+    init:
+      mode: always # 매 시작마다 schema-h2.sql 실행(CREATE TABLE IF NOT EXISTS라 이미 있으면 그냥 넘어감)
+      platform: h2 # schema-h2.sql 선택 (postgres 프로필에서는 application-postgres.yml이 postgresql로 오버라이드)
   servlet:
     multipart:
       max-file-size: 50MB
@@ -20,6 +18,11 @@ spring:
   h2:
     console:
       enabled: true # http://localhost:8080/h2-console 에서 저장된 데이터를 바로 눈으로 확인 가능 (JDBC URL: 위의 spring.datasource.url과 동일)
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true # DB의 file_name <-> 자바 필드 fileName 자동 매핑 (resultMap을 쓰고 있어 필수는 아니지만, 앞으로 매퍼가 늘어날 때를 대비해 켜둔다)
 
 app:
   cors:

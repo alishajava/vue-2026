@@ -6,3 +6,6 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: docuser
     password: ${DB_PASSWORD}
+  sql:
+    init:
+      platform: postgresql # schema-postgresql.sql 선택 (application.yml의 mode: always는 그대로 유지)
