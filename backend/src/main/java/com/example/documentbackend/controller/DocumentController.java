@@ -13,11 +13,9 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 // 프론트(src/api/documentApi.js)와 1:1로 맞춘 CRUD + 변환 엔드포인트.
 // JPA(DocumentRepository) -> MyBatis(DocumentMapper)로 교체됐다. JpaRepository.save()처럼
 // insert/update를 알아서 구분해주는 메서드가 없어서 컨트롤러에서 명시적으로 나눠 호출한다.
+//
+// PUT/DELETE를 막는 프레임워크/게이트웨이 환경이 있어서 전부 POST로 통일했다(REST
+// 메서드 시맨틱이 꼭 필요한 공개 API가 아니라 내부 CRUD 화면이라 문제 없음). update는
+// 기존 PUT과 같은 경로(POST /{id})를 그대로 쓰고, delete만 경로를 분리했다(POST
+// /{id}로 같이 묶으면 update와 경로가 겹쳐 구분이 안 되므로 POST /{id}/delete).
 @RestController
 @RequestMapping("/api/documents")
 public class DocumentController {
@@ -62,7 +65,7 @@ public class DocumentController {
         return DocumentResponse.from(doc);
     }
 
-    @PutMapping("/{id}")
+    @PostMapping("/{id}")
     public DocumentResponse update(@PathVariable Long id, @RequestBody DocumentRequest request) {
         DocumentEntity doc = findByIdOrThrow(id);
         applyRequest(doc, request);
@@ -79,7 +82,7 @@ public class DocumentController {
         return DocumentResponse.from(doc);
     }
 
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/delete")
     public void delete(@PathVariable Long id) {
         documentMapper.deleteById(id);
     }

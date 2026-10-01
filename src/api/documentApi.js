@@ -36,13 +36,15 @@ export async function createDocument(payload) {
 }
 
 // payload는 createDocument와 동일한 형태. fileBase64를 생략하면 기존 파일을 유지한다.
+// PUT/DELETE를 막는 프레임워크/게이트웨이 환경이 있어서 전부 POST로 통일했다
+// (백엔드 DocumentController 참고) - delete만 경로가 /{id}/delete로 분리돼 있다.
 export async function updateDocument(id, payload) {
-  const { data } = await client.put(`/api/documents/${id}`, payload)
+  const { data } = await client.post(`/api/documents/${id}`, payload)
   return data
 }
 
 export async function deleteDocument(id) {
-  await client.delete(`/api/documents/${id}`)
+  await client.post(`/api/documents/${id}/delete`)
 }
 
 // 구버전 .ppt(바이너리 포맷)는 브라우저에서 파싱할 수 없어서, 서버(Apache POI)가
