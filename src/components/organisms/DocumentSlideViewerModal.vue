@@ -382,11 +382,33 @@ async function stripFooterPlaceholders(buffer) {
   }
 }
 
+// 저장된(= 서버에서 다시 불러온) 행은 부모(DocumentLibraryPage)가 openPreview()에서
+// fetchDocumentFile을 "await 하기 전에" 이미 open=true를 먼저 켠다(로딩 스피너를
+// 보여주려고) - 그래서 이 open 워처가 실행되는 시점엔 아직 props.fileBuffer가 null이라
+// 그대로 return 해버렸고, 그 뒤 fileBuffer가 실제로 채워져도 open 값 자체는 안
+// 바뀌었으니 이 워처가 다시 실행되지 않아 initPptxMain/initPdfMain이 끝내 호출되지
+// 않았다(미리보기가 빈 화면으로 뜨고, pptxSlideCount도 0에 머물러 크게보기에서
+// 다음 슬라이드로 못 넘어가는 문제의 원인). fileBuffer 쪽에도 똑같은 초기화를 걸어두고,
+// 두 워처 중 먼저 조건이 맞는 쪽이 한 번만 초기화하도록 막는다.
+let mainInitialized = false
+
+async function maybeInitMain() {
+  if (mainInitialized || isImageBased.value || !props.open || !props.fileBuffer) return
+  mainInitialized = true
+  await nextTick()
+  if (props.fileType === 'pdf') {
+    initPdfMain()
+  } else {
+    await initPptxMain()
+  }
+}
+
 watch(
   () => props.open,
   async (isOpen) => {
     if (!isOpen) {
       cleanupMain()
+      mainInitialized = false
       return
     }
     loadError.value = ''
@@ -396,15 +418,11 @@ watch(
       totalPages.value = props.slideImages?.length || 1
       return
     }
-    if (!props.fileBuffer) return
-    await nextTick()
-    if (props.fileType === 'pdf') {
-      initPdfMain()
-    } else {
-      await initPptxMain()
-    }
+    await maybeInitMain()
   },
 )
+
+watch(() => props.fileBuffer, maybeInitMain)
 
 // ppt/pptx(이미지 기반)는 팝업이 열린 뒤 서버 변환이 끝나야 slideImages가 채워지므로,
 // 별도로 지켜본다.

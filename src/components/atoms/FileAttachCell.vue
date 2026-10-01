@@ -6,16 +6,17 @@
 
     <div
       v-else
-      class="file-thumb"
-      :style="{ width: THUMB_WIDTH + 'px', height: THUMB_HEIGHT + 'px' }"
+      :style="thumbStyle"
+      @mouseenter="isHovered = true"
+      @mouseleave="isHovered = false"
     >
       <a-spin v-if="isLoadingThumb" size="small" />
       <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
-      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" class="file-thumb__pptx" />
-      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" class="file-thumb__img" />
-      <div v-else class="file-thumb__icon">{{ (fileType || '').toUpperCase() }}</div>
+      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" :style="thumbContentStyle" />
+      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" :style="thumbContentStyle" />
+      <div v-else :style="thumbIconStyle">{{ (fileType || '').toUpperCase() }}</div>
 
-      <div class="file-thumb__overlay">
+      <div :style="overlayStyle">
         <a-tooltip title="미리보기">
           <a-button size="small" shape="circle" @click.stop="openPreview">👁</a-button>
         </a-tooltip>
@@ -51,8 +52,10 @@
  * 실패하면 파일 형식을 나타내는 작은 아이콘으로 대체한다.
  *
  * ag-Grid cellRenderer는 메인 앱 트리 밖에서 별도로 마운트되어 <style scoped>가
- * 적용되지 않는다 - 여기서는 antd-vue 전역 컴포넌트만 쓰고, 이 파일만의 고유 클래스는
- * 인라인 스타일이나 :style로 처리한다.
+ * 적용되지 않는다(실제로 렌더링된 DOM에 data-v-* 속성 자체가 안 붙는 것까지 확인됨) -
+ * 여기서는 antd-vue 전역 컴포넌트만 쓰고, 이 파일만의 고유 요소는 전부 :style로
+ * 처리한다(클래스를 썼다간 아무 CSS도 안 먹는다 - 전에 그래서 썸네일 높이가 0이
+ * 되고 오버레이가 absolute 포지션을 못 받아 박스 중간이 아니라 위쪽에 떠버렸다).
  */
 import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Modal, message } from 'ant-design-vue'
@@ -70,6 +73,53 @@ const props = defineProps({
 
 const THUMB_WIDTH = 92
 const THUMB_HEIGHT = 52
+
+const isHovered = ref(false)
+
+const thumbStyle = computed(() => ({
+  position: 'relative',
+  overflow: 'hidden',
+  borderRadius: '4px',
+  border: '1px solid #e1e0d9',
+  background: '#fff',
+  flexShrink: 0,
+  width: THUMB_WIDTH + 'px',
+  height: THUMB_HEIGHT + 'px',
+}))
+
+const thumbContentStyle = {
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  transformOrigin: 'top left',
+  pointerEvents: 'none',
+}
+
+const thumbIconStyle = {
+  width: '100%',
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '11px',
+  fontWeight: '700',
+  color: '#898781',
+  background: '#f3f2ee',
+}
+
+const overlayStyle = computed(() => ({
+  position: 'absolute',
+  inset: '0',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '4px',
+  background: 'rgba(0, 0, 0, 0.55)',
+  opacity: isHovered.value ? 1 : 0,
+  transition: 'opacity 0.15s',
+  pointerEvents: isHovered.value ? 'auto' : 'none',
+}))
 
 async function handleBeforeUpload(file) {
   const ext = file.name.split('.').pop()?.toLowerCase()
@@ -237,50 +287,3 @@ function removeRow() {
   })
 }
 </script>
-
-<style scoped>
-.file-thumb {
-  position: relative;
-  overflow: hidden;
-  border-radius: 4px;
-  border: 1px solid #e1e0d9;
-  background: #fff;
-  flex-shrink: 0;
-}
-.file-thumb :deep(canvas),
-.file-thumb__pptx,
-.file-thumb__img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.file-thumb__pptx {
-  transform-origin: top left;
-  pointer-events: none;
-}
-.file-thumb__icon {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #898781;
-  background: #f3f2ee;
-}
-.file-thumb__overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.55);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.file-thumb:hover .file-thumb__overlay {
-  opacity: 1;
-}
-</style>
