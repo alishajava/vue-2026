@@ -40,12 +40,15 @@
             <span class="pptx-slide-viewer__hint">{{ currentPage }} / {{ totalPages }}페이지</span>
             <a-button type="primary" @click="openEnlarge">크게보기</a-button>
           </div>
-          <div class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf">
+          <div
+            class="pptx-slide-viewer__preview pptx-slide-viewer__preview--pdf-canvas"
+            :style="{ width: pdfPreviewSize.width + 'px', height: pdfPreviewSize.height + 'px' }"
+          >
             <VuePdfEmbed
               v-if="pdfPreviewSource"
               :source="pdfPreviewSource"
               :page="currentPage"
-              :width="PREVIEW_WIDTH"
+              :width="pdfPreviewSize.width"
               @loaded="onPdfLoaded"
             />
             <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
@@ -122,8 +125,11 @@
       <div class="pptx-slide-viewer__enlarge-header">
         <span>{{ currentPage }} / {{ totalPages }}페이지</span>
       </div>
-      <div class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf">
-        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="ENLARGE_WIDTH" />
+      <div
+        class="pptx-slide-viewer__enlarge pptx-slide-viewer__enlarge--pdf-canvas"
+        :style="{ width: pdfEnlargeSize.width + 'px', height: pdfEnlargeSize.height + 'px' }"
+      >
+        <VuePdfEmbed v-if="pdfEnlargeSource" :source="pdfEnlargeSource" :page="currentPage" :width="pdfEnlargeSize.width" />
         <SlideNavArrows :disabled-prev="currentPage <= 1" :disabled-next="currentPage >= totalPages" @prev="pdfPrev" @next="pdfNext" />
       </div>
       <SlideDotsIndicator :count="dotCount" :active-index="dotActiveIndex" @select="goToDot" />
@@ -301,6 +307,23 @@ const enlargeSize = computed(() => ({
   height: Math.round(ENLARGE_WIDTH / slideAspectRatio.value),
 }))
 
+// --- pdf 크기 ---
+// pptx는 위 slideAspectRatio/previewSize처럼 "너비 고정, 실제 비율로 높이 계산"해서
+// 스크롤 없이 꽉 차게 그리는데, pdf 쪽은 너비만 고정(PREVIEW_WIDTH)하고 높이는
+// max-height + overflow:auto로 잘라내고 있었다 - A4 등 세로로 긴 페이지는 760px
+// 너비 기준 높이가 560px 캡을 넘어서(예: A4 비율이면 약 1075px) 항상 스크롤이
+// 생겼다. pptx와 동일하게 실제 페이지 비율대로 높이를 계산해서 스크롤 없이 한
+// 화면에 다 보이게 한다.
+const pdfAspectRatio = ref(16 / 9) // 페이지 로드 전 기본값(pptx의 slideAspectRatio와 동일한 패턴)
+const pdfPreviewSize = computed(() => ({
+  width: PREVIEW_WIDTH,
+  height: Math.round(PREVIEW_WIDTH / pdfAspectRatio.value),
+}))
+const pdfEnlargeSize = computed(() => ({
+  width: ENLARGE_WIDTH,
+  height: Math.round(ENLARGE_WIDTH / pdfAspectRatio.value),
+}))
+
 // --- pdf ---
 const pdfListSource = shallowRef(null)
 const pdfPreviewSource = shallowRef(null)
@@ -415,8 +438,15 @@ function initPdfMain() {
   pdfPreviewSource.value = props.fileBuffer.slice(0)
 }
 
-function onPdfLoaded(proxy) {
+async function onPdfLoaded(proxy) {
   totalPages.value = proxy.numPages
+  try {
+    const page = await proxy.getPage(1)
+    const [x0, y0, x1, y1] = page.view
+    pdfAspectRatio.value = (x1 - x0) / (y1 - y0)
+  } catch (err) {
+    console.error('pdf 페이지 크기 조회 실패 - 기본 16:9 비율을 사용합니다', err)
+  }
 }
 
 // pdf는 페이지마다 캡션 텍스트 색만 바뀌고 실제 썸네일(캔버스)엔 표시가 없었다.
@@ -695,6 +725,12 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
 }
+.pptx-slide-viewer__preview--pdf-canvas {
+  /* pdf는 script의 pdfPreviewSize(실제 페이지 비율로 계산한 높이)를 인라인 style로
+     적용한다 - pptx의 --preview와 동일한 이유로 스크롤 없이 꽉 차게 보여준다. */
+  display: flex;
+  justify-content: center;
+}
 .pptx-slide-viewer__enlarge {
   /* pptx 크게보기도 마찬가지로 script의 enlargeSize를 인라인 style로 적용한다. */
   position: relative;
@@ -705,6 +741,11 @@ onBeforeUnmount(() => {
   height: auto;
   max-height: 75vh;
   overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+.pptx-slide-viewer__enlarge--pdf-canvas {
+  /* pdf 크게보기도 마찬가지로 script의 pdfEnlargeSize를 인라인 style로 적용한다. */
   display: flex;
   justify-content: center;
 }
