@@ -1,5 +1,5 @@
 <template>
-  <span style="display: flex; align-items: center; gap: 6px; height: 100%">
+  <span style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 100%; width: 100%">
     <a-button size="small" @click="toggleHidden">{{ params.data.hidden ? '숨김해제' : '숨기기' }}</a-button>
     <a-button size="small" danger @click="deleteRow">삭제</a-button>
   </span>
