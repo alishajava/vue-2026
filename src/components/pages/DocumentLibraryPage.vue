@@ -5,6 +5,16 @@
       <router-link class="document-library-page__back" to="/">← 대시보드로</router-link>
     </div>
 
+    <div class="document-library-page__month-picker">
+      <span class="document-library-page__month-picker-label">조회 년월</span>
+      <a-date-picker
+        :value="selectedMonthPickerValue"
+        picker="month"
+        :allow-clear="false"
+        @change="onSelectedMonthChange"
+      />
+    </div>
+
     <BaseCard title="등록 목록">
       <template #extra>
         <span class="document-library-page__toolbar">
@@ -26,6 +36,8 @@
           dom-layout="autoHeight"
           :suppress-cell-focus="true"
           :row-height="64"
+          :is-external-filter-present="isExternalFilterPresent"
+          :does-external-filter-pass="doesExternalFilterPass"
           @grid-ready="onGridReady"
           @cell-value-changed="onCellValueChanged"
         />
@@ -51,13 +63,14 @@
  * PPT/PDF 자료를 행 단위로 등록/변경/삭제/숨기기 하는 그리드 화면. 대시보드/단일
  * 미리보기 페이지와는 별개의 독립 라우트(/#/documents)다.
  *
- * 컬럼: 구분(제목) / 파일첨부(첨부 시 썸네일로 바뀌고, 마우스오버하면 미리보기/다운로드/삭제) / 파일명 / 등록자 / 등록일시 / 기준년월 / 관리
+ * 컬럼: 구분(제목) / 파일첨부(첨부 시 썸네일로 바뀌고, 마우스오버하면 미리보기/다운로드/삭제) / 파일명 / 등록자 / 등록일시 / 관리
  *
- * [등록일시 vs 기준년월]
- * 등록일시는 파일을 첨부한 시점에 자동으로 찍히는 타임스탬프로 수정할 수 없다.
- * 기준년월은 그와 별개로, 사용자가 이 문서가 어느 년-월 자료인지 직접 골라서 저장하는
- * 값이다(ReferenceMonthCell). 등록은 오늘 했어도 내용은 지난달 자료일 수 있는 식의
- * 경우를 위한 필드.
+ * [기준년월 - 화면 좌상단 선택기]
+ * "이 문서가 어느 년-월 자료인지"는 행마다 따로 고르는 값이 아니라, 화면 좌상단의
+ * 년월 선택기(selectedMonth) 하나로 관리한다 - 이 화면 자체가 "년월별 자료함"이라는
+ * 컨셉이라, 선택기에서 고른 달의 자료만 걸러서 보여주고(doesExternalFilterPass),
+ * 그 상태에서 새로 추가하는 행은 전부 그 달로 자동 지정된다(addRow). 등록일시(자동
+ * 타임스탬프, 수정 불가)와는 별개의 값이라는 점은 기존과 같다.
  *
  * [행 상태(status) 흐름]
  * 'new'(추가만 하고 아직 저장 안 함) -> 저장 -> 'saved'(서버에 반영됨)
@@ -77,12 +90,12 @@
  * '저장'은 gridApi.forEachNode로 현재 그리드의 모든 행을 순회해서 처리하므로,
  * rowData를 별도로 동기화해서 들고 있을 필요가 없다.
  */
-import { ref, shallowRef, onMounted } from 'vue'
+import { ref, shallowRef, computed, onMounted, watch } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 import BaseCard from '../atoms/BaseCard.vue'
 import FileAttachCell from '../atoms/FileAttachCell.vue'
-import ReferenceMonthCell from '../atoms/ReferenceMonthCell.vue'
 import RowActionsCell from '../atoms/RowActionsCell.vue'
 import TitleCell from '../atoms/TitleCell.vue'
 import DocumentSlideViewerModal from '../organisms/DocumentSlideViewerModal.vue'
@@ -106,6 +119,15 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 })
 
+// 화면 좌상단 년월 선택기 - "YYYY-MM" 문자열로 들고 있는다(ReferenceMonthCell에서 쓰던
+// 것과 동일한 형식). 그리드는 이 값과 referenceMonth가 일치하는 행만 보여주고
+// (doesExternalFilterPass), 새로 추가하는 행은 전부 이 값으로 지정된다(createEmptyRow).
+const selectedMonth = ref(dayjs().format('YYYY-MM'))
+const selectedMonthPickerValue = computed(() => dayjs(selectedMonth.value, 'YYYY-MM'))
+function onSelectedMonthChange(date) {
+  selectedMonth.value = (date || dayjs()).format('YYYY-MM')
+}
+
 function createEmptyRow() {
   return {
     id: null,
@@ -115,7 +137,7 @@ function createEmptyRow() {
     fileBuffer: null, // 아직 서버에 안 올라간 첨부 파일. 저장되면 비운다(메모리 절약).
     registrant: getCurrentUserId(), // 직접 입력이 아니라 로그인 세션의 사용자 아이디로 자동 채운다.
     registeredAt: null,
-    referenceMonth: null, // 사용자가 직접 고르는 기준년월("YYYY-MM" 문자열). 등록일시와 별개.
+    referenceMonth: selectedMonth.value, // 행별로 따로 고르지 않고, 좌상단 선택기 값을 그대로 가져온다.
     hidden: false,
     status: 'new', // 'new' | 'saved' | 'dirty'
   }
@@ -125,6 +147,20 @@ const rowData = shallowRef([createEmptyRow()])
 const gridApi = ref(null)
 const listLoadError = ref('')
 const saving = ref(false)
+
+// 년월 선택기가 바뀔 때마다 그리드에 다시 필터링하라고 알려준다 - rowData 자체를
+// 바꾸는 게 아니라(그러면 저장 안 한 new/dirty 행이 화면에서 사라지면서 저장 대상에서
+// 빠질 위험이 있다) 외부 필터(doesExternalFilterPass)만 다시 평가시킨다.
+watch(selectedMonth, () => {
+  gridApi.value?.onFilterChanged()
+})
+
+function isExternalFilterPresent() {
+  return true
+}
+function doesExternalFilterPass(node) {
+  return node.data.referenceMonth === selectedMonth.value
+}
 
 function onGridReady(event) {
   gridApi.value = event.api
@@ -265,14 +301,6 @@ const columnDefs = [
     valueFormatter: (params) => (params.value ? dateTimeFormatter.format(params.value) : ''),
   },
   {
-    headerName: '기준년월',
-    field: 'referenceMonth',
-    cellRenderer: ReferenceMonthCell,
-    sortable: false,
-    flex: 1,
-    minWidth: 120,
-  },
-  {
     headerName: '관리',
     field: 'actions',
     cellRenderer: RowActionsCell,
@@ -369,6 +397,17 @@ const gridContext = { openPreview }
 }
 .document-library-page__back {
   font-size: 13px;
+  color: #52514e;
+}
+.document-library-page__month-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.document-library-page__month-picker-label {
+  font-size: 13px;
+  font-weight: 600;
   color: #52514e;
 }
 .document-library-page__toolbar {
