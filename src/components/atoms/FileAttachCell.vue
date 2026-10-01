@@ -6,15 +6,18 @@
 
     <div
       v-else
+      ref="thumbWrapperRef"
       :style="thumbStyle"
       @mouseenter="isHovered = true"
       @mouseleave="isHovered = false"
     >
-      <a-spin v-if="isLoadingThumb" size="small" />
-      <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
-      <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" :style="thumbContentStyle" />
-      <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" :style="thumbContentStyle" />
-      <div v-else :style="thumbIconStyle">{{ (fileType || '').toUpperCase() }}</div>
+      <div :style="thumbScaledContentStyle">
+        <a-spin v-if="isLoadingThumb" size="small" />
+        <VuePdfEmbed v-else-if="fileType === 'pdf' && pdfThumbSource && !thumbLoadFailed" :source="pdfThumbSource" :page="1" :width="THUMB_WIDTH" />
+        <div v-else-if="fileType === 'pptx' && !thumbLoadFailed" ref="thumbContainer" :style="thumbContentStyle" />
+        <img v-else-if="fileType === 'ppt' && pptThumbImage && !thumbLoadFailed" :src="pptThumbImage" :style="thumbContentStyle" />
+        <div v-else :style="thumbIconStyle">{{ (fileType || '').toUpperCase() }}</div>
+      </div>
 
       <div :style="overlayStyle">
         <a-tooltip title="미리보기">
@@ -56,6 +59,16 @@
  * 여기서는 antd-vue 전역 컴포넌트만 쓰고, 이 파일만의 고유 요소는 전부 :style로
  * 처리한다(클래스를 썼다간 아무 CSS도 안 먹는다 - 전에 그래서 썸네일 높이가 0이
  * 되고 오버레이가 absolute 포지션을 못 받아 박스 중간이 아니라 위쪽에 떠버렸다).
+ *
+ * [반응형 크기]
+ * pdf(vue-pdf-embed)/pptx(pptx-preview) 둘 다 렌더링할 때 실제 캔버스/DOM 크기를
+ * 픽셀 숫자로 못박아서 받는 라이브러리라, 화면 크기가 바뀔 때마다 그 값에 맞춰 매번
+ * 다시 렌더링시키는 건 비용이 크다. 그래서 실제 렌더링은 항상 THUMB_WIDTH/HEIGHT
+ * "원본" 크기로 한 번만 하고, 그 결과를 담은 안쪽 래퍼(thumbScaledContentStyle)에
+ * CSS transform: scale()만 입혀서 바깥 박스(thumbStyle, width:100%+aspect-ratio로
+ * 반응형) 크기에 맞춘다. 바깥 박스의 실제 렌더링 폭은 ResizeObserver로 지켜보다가
+ * 바뀔 때마다 scale 비율만 다시 계산한다 - 렌더링을 다시 하지 않아도 되니 리사이즈
+ * 중에도 가볍다.
  */
 import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Modal, message } from 'ant-design-vue'
@@ -71,10 +84,28 @@ const props = defineProps({
   },
 })
 
-const THUMB_WIDTH = 92
+const THUMB_WIDTH = 92 // 실제 렌더링(pptx-preview/vue-pdf-embed)에 넘기는 "원본" 크기 - 화면에 보이는 크기는 이걸 CSS로 스케일해서 만든다.
 const THUMB_HEIGHT = 52
 
 const isHovered = ref(false)
+
+// --- 반응형 스케일(ResizeObserver) ---
+const thumbWrapperRef = ref(null)
+const renderScale = ref(1)
+let resizeObserver = null
+
+function observeThumbWrapper(el) {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (!el) return
+  resizeObserver = new ResizeObserver((entries) => {
+    const width = entries[0]?.contentRect?.width
+    if (width) renderScale.value = width / THUMB_WIDTH
+  })
+  resizeObserver.observe(el)
+}
+
+watch(thumbWrapperRef, observeThumbWrapper)
 
 const thumbStyle = computed(() => ({
   position: 'relative',
@@ -82,9 +113,18 @@ const thumbStyle = computed(() => ({
   borderRadius: '4px',
   border: '1px solid #e1e0d9',
   background: '#fff',
-  flexShrink: 0,
+  width: '100%',
+  aspectRatio: `${THUMB_WIDTH} / ${THUMB_HEIGHT}`,
+}))
+
+// 원본 크기(THUMB_WIDTH/HEIGHT)로 그대로 렌더링한 뒤, 이 래퍼에만 scale을 입혀서
+// 바깥 박스(반응형) 크기에 맞춘다. transform-origin을 left top으로 둬야 박스
+// 왼쪽위를 기준으로 커지고/작아지므로, 바깥 박스와 안쪽 콘텐츠의 왼쪽위가 항상 맞는다.
+const thumbScaledContentStyle = computed(() => ({
   width: THUMB_WIDTH + 'px',
   height: THUMB_HEIGHT + 'px',
+  transform: `scale(${renderScale.value})`,
+  transformOrigin: 'top left',
 }))
 
 const thumbContentStyle = {
@@ -239,7 +279,10 @@ async function renderThumbnail() {
 // 파일이 (재)첨부될 때마다, 또는 셀이 새로 마운트될 때(저장된 행) 다시 그린다.
 watch(() => [props.params.data.fileBuffer, props.params.data.fileType], renderThumbnail, { immediate: true })
 
-onBeforeUnmount(cleanupThumb)
+onBeforeUnmount(() => {
+  cleanupThumb()
+  resizeObserver?.disconnect()
+})
 
 // --- 오버레이 액션 ---
 function openPreview() {
