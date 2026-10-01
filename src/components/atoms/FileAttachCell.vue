@@ -269,6 +269,11 @@ async function renderThumbnail() {
       // 맞춰 가운데 정렬(letterbox)해주므로, 어떤 비율의 슬라이드든 박스를 벗어나지 않는다.
       pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, height: THUMB_HEIGHT, mode: 'slide' })
       await pptxThumbViewer.preview(buffer.slice(0))
+      // pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음 버튼 +
+      // 페이지 표시(DocumentSlideViewerModal의 stripBuiltInNav와 동일한 것)를 여기서도
+      // 지워야 한다 - 92x52의 작은 썸네일 박스엔 안 맞는 크기라 모서리에 잘린 조각만
+      // 보이는 원인이었다. 썸네일은 클릭해서 넘기는 기능 자체가 없으니 그냥 없애면 된다.
+      thumbContainer.value.querySelectorAll('.pptx-preview-wrapper-next, .pptx-preview-wrapper-pagination').forEach((el) => el.remove())
     } catch (err) {
       console.error('pptx 썸네일 렌더링 실패', err)
       thumbLoadFailed.value = true
