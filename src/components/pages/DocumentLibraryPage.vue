@@ -291,7 +291,6 @@ const defaultColDef = {
 
 function getRowStyle(params) {
   if (params.data.hidden) return { opacity: 0.5, background: '#f5f5f5' }
-  if (params.data.status === 'dirty') return { background: '#fffbe6' }
   return null
 }
 

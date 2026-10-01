@@ -76,6 +76,7 @@ import { init as initPptxPreview } from 'pptx-preview'
 import VuePdfEmbed from 'vue-pdf-embed'
 import { clearDocumentFile, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
+import { stripFooterPlaceholders } from '../../utils/pptxCleanup'
 
 const props = defineProps({
   params: {
@@ -268,7 +269,11 @@ async function renderThumbnail() {
       // 잘림). width/height를 둘 다 박스 크기로 넘기면 라이브러리가 그 안에서 실제 비율에
       // 맞춰 가운데 정렬(letterbox)해주므로, 어떤 비율의 슬라이드든 박스를 벗어나지 않는다.
       pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, height: THUMB_HEIGHT, mode: 'slide' })
-      await pptxThumbViewer.preview(buffer.slice(0))
+      // 날짜/바닥글/슬라이드번호 자리표시자(DocumentSlideViewerModal과 동일한 이유로
+      // pptx-preview가 구분 없이 그려버리는 것)를 썸네일에서도 먼저 잘라낸다 - 안 그러면
+      // 전체 슬라이드를 그대로 축소한 썸네일 모서리에 작게 슬라이드 번호가 딸려 보인다.
+      const cleanedBuffer = await stripFooterPlaceholders(buffer)
+      await pptxThumbViewer.preview(cleanedBuffer.slice(0))
       // pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음 버튼 +
       // 페이지 표시(DocumentSlideViewerModal의 stripBuiltInNav와 동일한 것)를 여기서도
       // 지워야 한다 - 92x52의 작은 썸네일 박스엔 안 맞는 크기라 모서리에 잘린 조각만
