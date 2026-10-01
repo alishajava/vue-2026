@@ -31,13 +31,14 @@ function toggleHidden() {
   row.hidden = !row.hidden
   if (row.status === 'saved') row.status = 'dirty'
   props.params.api.applyTransaction({ update: [row] })
+  // refreshCells는 지정한 컬럼의 셀 값만 다시 그릴 뿐, DocumentLibraryPage의
+  // getRowStyle(흐리게 처리)은 다시 안 불러준다 - redrawRows로 이 행 자체를 통째로
+  // 다시 그려야 getRowStyle도 같이 재계산된다. 이게 없으면 숨김해제해도 흐린 상태가
+  // 그대로 남아있었다(이 행의 '관리' 컬럼 버튼 라벨도 같이 갱신되므로, 전용
+  // refreshCells 호출은 더 이상 따로 필요 없다).
+  props.params.api.redrawRows({ rowNodes: [props.params.node] })
   // 숨김 여부는 다른 행들의 순번 표시에도 영향을 주므로 '구분' 컬럼 전체를 다시 그린다.
   props.params.api.refreshCells({ columns: ['title'], force: true })
-  // 'actions' 컬럼은 field: 'actions'에 대응하는 row.actions 데이터가 실제로는
-  // 없어서(FileAttachCell의 'attach' 컬럼과 동일한 이유) applyTransaction의 자동
-  // 변경 감지 대상이 아니다 - 이 버튼 자신(숨기기 <-> 숨김해제 라벨)이 안 바뀌는
-  // 원인이었다. 이 행에만 scope해서 강제로 다시 그린다.
-  props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['actions'], force: true })
 }
 
 function deleteRow() {
