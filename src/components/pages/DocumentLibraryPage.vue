@@ -89,6 +89,7 @@ import RowActionsCell from '../atoms/RowActionsCell.vue'
 import TitleCell from '../atoms/TitleCell.vue'
 import DocumentSlideViewerModal from '../organisms/DocumentSlideViewerModal.vue'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
+import { getCurrentUserId } from '../../utils/session'
 import {
   listDocuments,
   createDocument,
@@ -114,7 +115,7 @@ function createEmptyRow() {
     fileName: '',
     fileType: null, // 'pptx' | 'pdf' | 'ppt'
     fileBuffer: null, // 아직 서버에 안 올라간 첨부 파일. 저장되면 비운다(메모리 절약).
-    registrant: '',
+    registrant: getCurrentUserId(), // 직접 입력이 아니라 로그인 세션의 사용자 아이디로 자동 채운다.
     registeredAt: null,
     hidden: false,
     status: 'new', // 'new' | 'saved' | 'dirty'
@@ -187,7 +188,7 @@ function refreshNumbering() {
 }
 
 function onCellValueChanged(event) {
-  if (['title', 'registrant'].includes(event.colDef.field) && event.data.status === 'saved') {
+  if (event.colDef.field === 'title' && event.data.status === 'saved') {
     event.data.status = 'dirty'
   }
 }
@@ -276,7 +277,7 @@ const columnDefs = [
   {
     headerName: '등록자',
     field: 'registrant',
-    editable: true,
+    editable: false, // 직접 입력이 아니라 로그인 세션의 사용자 아이디로 자동 채워진다.
     flex: 1,
     minWidth: 100,
   },
