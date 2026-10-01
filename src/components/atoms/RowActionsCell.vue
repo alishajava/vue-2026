@@ -33,6 +33,11 @@ function toggleHidden() {
   props.params.api.applyTransaction({ update: [row] })
   // 숨김 여부는 다른 행들의 순번 표시에도 영향을 주므로 '구분' 컬럼 전체를 다시 그린다.
   props.params.api.refreshCells({ columns: ['title'], force: true })
+  // 'actions' 컬럼은 field: 'actions'에 대응하는 row.actions 데이터가 실제로는
+  // 없어서(FileAttachCell의 'attach' 컬럼과 동일한 이유) applyTransaction의 자동
+  // 변경 감지 대상이 아니다 - 이 버튼 자신(숨기기 <-> 숨김해제 라벨)이 안 바뀌는
+  // 원인이었다. 이 행에만 scope해서 강제로 다시 그린다.
+  props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['actions'], force: true })
 }
 
 function deleteRow() {
