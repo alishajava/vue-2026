@@ -47,6 +47,12 @@ export async function deleteDocument(id) {
   await client.post(`/api/documents/${id}/delete`)
 }
 
+// 행은 남기고 첨부파일만 서버에서 지운다(파일첨부 컬럼을 '파일선택' 전 상태로 초기화).
+export async function clearDocumentFile(id) {
+  const { data } = await client.post(`/api/documents/${id}/clear-file`)
+  return data
+}
+
 // 구버전 .ppt(바이너리 포맷)는 브라우저에서 파싱할 수 없어서, 서버(Apache POI)가
 // 슬라이드를 PNG로 변환해 내려준다. 둘 다 "data:image/png;base64,..." 문자열 배열을 반환한다.
 

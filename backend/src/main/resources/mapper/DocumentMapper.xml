@@ -58,6 +58,17 @@
         WHERE id = #{id}
     </update>
 
+    <!-- update와 달리 file_data를 조건 없이 NULL로 지운다 - "파일만 초기화"는 기존
+         바이너리를 남겨둘 이유가 없는, 파일 제거가 목적인 별도 액션이라 분리했다. -->
+    <update id="clearFile">
+        UPDATE document_library
+        SET file_name = NULL,
+            file_type = NULL,
+            file_data = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
     <delete id="deleteById">
         DELETE FROM document_library WHERE id = #{id}
     </delete>

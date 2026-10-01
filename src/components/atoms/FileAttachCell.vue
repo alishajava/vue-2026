@@ -26,8 +26,8 @@
         <a-tooltip title="다운로드">
           <a-button size="small" shape="circle" @click.stop="download">⬇</a-button>
         </a-tooltip>
-        <a-tooltip title="삭제">
-          <a-button size="small" shape="circle" danger @click.stop="removeRow">✕</a-button>
+        <a-tooltip title="초기화">
+          <a-button size="small" shape="circle" danger @click.stop="resetFile">✕</a-button>
         </a-tooltip>
       </div>
     </div>
@@ -74,7 +74,7 @@ import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount } from 'vue
 import { Modal, message } from 'ant-design-vue'
 import { init as initPptxPreview } from 'pptx-preview'
 import VuePdfEmbed from 'vue-pdf-embed'
-import { deleteDocument, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
+import { clearDocumentFile, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 
 const props = defineProps({
@@ -315,24 +315,30 @@ async function download() {
   }
 }
 
-// RowActionsCell의 삭제 버튼과 동일한 로직(확인창 -> 그리드에서 즉시 제거 -> 저장된
-// 행이면 서버에도 삭제 요청) - 여기서도 빠르게 지울 수 있게 그대로 재사용한다.
-function removeRow() {
+// 행 자체는 그대로 두고 첨부파일만 지워서 '파일선택' 버튼이 다시 보이는 상태로
+// 되돌린다. 이미 서버에 저장된 행(id가 있는 행)이면 즉시 서버에도 반영한다 -
+// RowActionsCell의 삭제와 같은 이유로, 되돌릴 필요가 거의 없는 동작이라 '저장'
+// 버튼을 거치지 않고 바로 확정한다.
+function resetFile() {
   const row = props.params.data
   Modal.confirm({
-    title: '삭제하시겠습니까?',
-    content: row.title ? `"${row.title}" 항목을 삭제합니다.` : '이 항목을 삭제합니다.',
-    okText: '삭제',
+    title: '첨부파일을 초기화하시겠습니까?',
+    content: row.fileName ? `"${row.fileName}" 파일을 제거합니다.` : '첨부된 파일을 제거합니다.',
+    okText: '초기화',
     okType: 'danger',
     cancelText: '취소',
     onOk: async () => {
-      props.params.api.applyTransaction({ remove: [row] })
-      props.params.api.refreshCells({ columns: ['title'], force: true })
+      row.fileName = null
+      row.fileType = null
+      row.fileBuffer = null
+      row.registeredAt = null
+      props.params.api.applyTransaction({ update: [row] })
+      props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['attach'], force: true })
       if (row.id) {
         try {
-          await deleteDocument(row.id)
+          await clearDocumentFile(row.id)
         } catch (err) {
-          message.error('서버에서 삭제하지 못했습니다.')
+          message.error('서버에서 첨부파일을 지우지 못했습니다.')
           console.error(err)
         }
       }

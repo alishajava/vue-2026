@@ -18,5 +18,7 @@ public interface DocumentMapper {
 
     void update(DocumentEntity doc);
 
+    void clearFile(Long id);
+
     void deleteById(Long id);
 }

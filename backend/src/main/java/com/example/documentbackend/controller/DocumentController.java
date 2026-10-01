@@ -87,6 +87,13 @@ public class DocumentController {
         documentMapper.deleteById(id);
     }
 
+    // 행 자체는 남기고 첨부파일만 지운다(파일선택 버튼이 다시 보이는 상태로 되돌림).
+    @PostMapping("/{id}/clear-file")
+    public DocumentResponse clearFile(@PathVariable Long id) {
+        documentMapper.clearFile(id);
+        return DocumentResponse.from(findByIdOrThrow(id));
+    }
+
     // 아직 저장 전(id 없음)인 파일을 즉석 변환 - 구버전 .ppt 미리보기용.
     @PostMapping("/convert")
     public List<String> convert(@RequestBody ConvertRequest request) throws IOException {
