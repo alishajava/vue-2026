@@ -222,7 +222,12 @@ async function renderThumbnail() {
     await nextTick()
     if (!thumbContainer.value) return
     try {
-      pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, mode: 'slide' })
+      // height를 안 넘기면 pptx-preview가 실제 슬라이드 비율대로 자기 높이를 계산해버려서,
+      // 92x52 박스랑 비율이 다른 슬라이드(예: 4:3)는 박스를 벗어나거나(overflow:hidden에
+      // 잘림) 반대로 작게 나왔다(실제 재현 확인: 92x69로 계산돼 52px 박스에서 아래쪽이
+      // 잘림). width/height를 둘 다 박스 크기로 넘기면 라이브러리가 그 안에서 실제 비율에
+      // 맞춰 가운데 정렬(letterbox)해주므로, 어떤 비율의 슬라이드든 박스를 벗어나지 않는다.
+      pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, height: THUMB_HEIGHT, mode: 'slide' })
       await pptxThumbViewer.preview(buffer.slice(0))
     } catch (err) {
       console.error('pptx 썸네일 렌더링 실패', err)
