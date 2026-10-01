@@ -1,13 +1,14 @@
 package com.example.documentbackend.dto;
 
-// POST /api/documents, PUT /api/documents/{id} 요청 바디.
-// 프론트의 documentApi.js가 보내는 { title, fileName, fileType, fileBase64, registrant, hidden }와 1:1 대응.
+// POST /api/documents, POST /api/documents/{id} 요청 바디.
+// 프론트의 documentApi.js가 보내는 { title, fileName, fileType, fileBase64, registrant, referenceMonth, hidden }와 1:1 대응.
 public class DocumentRequest {
     private String title;
     private String fileName;
     private String fileType;
     private String fileBase64; // update에서는 생략 가능(생략하면 기존 파일 유지)
     private String registrant;
+    private String referenceMonth; // "YYYY-MM" 또는 null
     private boolean hidden;
 
     public String getTitle() {
@@ -48,6 +49,14 @@ public class DocumentRequest {
 
     public void setRegistrant(String registrant) {
         this.registrant = registrant;
+    }
+
+    public String getReferenceMonth() {
+        return referenceMonth;
+    }
+
+    public void setReferenceMonth(String referenceMonth) {
+        this.referenceMonth = referenceMonth;
     }
 
     public boolean isHidden() {

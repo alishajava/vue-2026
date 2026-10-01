@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS document_library (
     file_data BYTEA,
     registrant VARCHAR(255),
     registered_at TIMESTAMP,
+    reference_month VARCHAR(7),
     updated_by VARCHAR(255),
     updated_at TIMESTAMP,
     hidden BOOLEAN NOT NULL DEFAULT FALSE

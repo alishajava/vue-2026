@@ -13,7 +13,7 @@ const client = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
 })
 
-// 목록: [{ id, title, fileName, fileType, registrant, registeredAt, hidden }, ...]
+// 목록: [{ id, title, fileName, fileType, registrant, registeredAt, referenceMonth, hidden }, ...]
 export async function listDocuments() {
   const { data } = await client.get('/api/documents')
   return data
@@ -29,7 +29,7 @@ export async function fetchDocumentFile(id) {
   return data.fileBase64
 }
 
-// payload: { title, fileName, fileType, fileBase64, registrant, hidden }
+// payload: { title, fileName, fileType, fileBase64, registrant, referenceMonth, hidden }
 export async function createDocument(payload) {
   const { data } = await client.post('/api/documents', payload)
   return data

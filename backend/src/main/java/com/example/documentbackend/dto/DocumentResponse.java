@@ -11,6 +11,7 @@ public class DocumentResponse {
     private String fileType;
     private String registrant;
     private LocalDateTime registeredAt;
+    private String referenceMonth;
     private boolean hidden;
 
     public static DocumentResponse from(DocumentEntity entity) {
@@ -21,6 +22,7 @@ public class DocumentResponse {
         response.setFileType(entity.getFileType());
         response.setRegistrant(entity.getRegistrant());
         response.setRegisteredAt(entity.getRegisteredAt());
+        response.setReferenceMonth(entity.getReferenceMonth());
         response.setHidden(entity.isHidden());
         return response;
     }
@@ -71,6 +73,14 @@ public class DocumentResponse {
 
     public void setRegisteredAt(LocalDateTime registeredAt) {
         this.registeredAt = registeredAt;
+    }
+
+    public String getReferenceMonth() {
+        return referenceMonth;
+    }
+
+    public void setReferenceMonth(String referenceMonth) {
+        this.referenceMonth = referenceMonth;
     }
 
     public boolean isHidden() {

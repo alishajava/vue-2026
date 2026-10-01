@@ -10,6 +10,7 @@
         <result property="fileData" column="file_data"/>
         <result property="registrant" column="registrant"/>
         <result property="registeredAt" column="registered_at"/>
+        <result property="referenceMonth" column="reference_month"/>
         <result property="updatedBy" column="updated_by"/>
         <result property="updatedAt" column="updated_at"/>
         <result property="hidden" column="hidden"/>
@@ -19,7 +20,7 @@
          모든 행의 파일을 통째로 실어나르는 낭비를 피하려고, 실제 파일은
          /file, /slides 엔드포인트에서 그때그때 따로 조회한다. -->
     <select id="findAll" resultMap="documentResultMap">
-        SELECT id, title, file_name, file_type, registrant, registered_at, updated_by, updated_at, hidden
+        SELECT id, title, file_name, file_type, registrant, registered_at, reference_month, updated_by, updated_at, hidden
         FROM document_library
         ORDER BY id
     </select>
@@ -32,9 +33,9 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO document_library
-            (title, file_name, file_type, file_data, registrant, registered_at, hidden)
+            (title, file_name, file_type, file_data, registrant, registered_at, reference_month, hidden)
         VALUES
-            (#{title}, #{fileName}, #{fileType}, #{fileData,jdbcType=BLOB}, #{registrant}, #{registeredAt}, #{hidden})
+            (#{title}, #{fileName}, #{fileType}, #{fileData,jdbcType=BLOB}, #{registrant}, #{registeredAt}, #{referenceMonth}, #{hidden})
     </insert>
 
     <!-- fileData가 null이면(파일을 새로 첨부하지 않고 제목/등록자/숨김만 바꾼 경우)
@@ -45,6 +46,7 @@
         <set>
             title = #{title},
             registrant = #{registrant},
+            reference_month = #{referenceMonth},
             hidden = #{hidden},
             file_name = #{fileName},
             file_type = #{fileType},

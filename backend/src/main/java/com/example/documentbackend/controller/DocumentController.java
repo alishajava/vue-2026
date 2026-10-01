@@ -115,6 +115,7 @@ public class DocumentController {
         doc.setFileName(request.getFileName());
         doc.setFileType(request.getFileType());
         doc.setRegistrant(request.getRegistrant());
+        doc.setReferenceMonth(request.getReferenceMonth());
         doc.setHidden(request.isHidden());
         if (request.getFileBase64() != null && !request.getFileBase64().isBlank()) {
             doc.setFileData(Base64.getDecoder().decode(request.getFileBase64()));

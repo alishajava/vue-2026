@@ -21,6 +21,8 @@ public class DocumentEntity {
 
     private LocalDateTime registeredAt;
 
+    private String referenceMonth; // 사용자가 직접 고르는 "YYYY-MM" 기준년월. 등록일시와 별개.
+
     private String updatedBy;
 
     private LocalDateTime updatedAt;
@@ -81,6 +83,14 @@ public class DocumentEntity {
 
     public void setRegisteredAt(LocalDateTime registeredAt) {
         this.registeredAt = registeredAt;
+    }
+
+    public String getReferenceMonth() {
+        return referenceMonth;
+    }
+
+    public void setReferenceMonth(String referenceMonth) {
+        this.referenceMonth = referenceMonth;
     }
 
     public String getUpdatedBy() {

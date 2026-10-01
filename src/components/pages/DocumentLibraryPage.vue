@@ -8,13 +8,6 @@
     <BaseCard title="등록 목록">
       <template #extra>
         <span class="document-library-page__toolbar">
-          <a-date-picker
-            v-model:value="selectedMonth"
-            picker="month"
-            placeholder="전체 기간"
-            allow-clear
-            style="width: 140px"
-          />
           <a-button @click="addRow">+ 행 추가</a-button>
           <a-button type="primary" :loading="saving" @click="saveAll">저장</a-button>
         </span>
@@ -33,8 +26,6 @@
           dom-layout="autoHeight"
           :suppress-cell-focus="true"
           :row-height="64"
-          :is-external-filter-present="isExternalFilterPresent"
-          :does-external-filter-pass="doesExternalFilterPass"
           @grid-ready="onGridReady"
           @cell-value-changed="onCellValueChanged"
         />
@@ -60,11 +51,17 @@
  * PPT/PDF 자료를 행 단위로 등록/변경/삭제/숨기기 하는 그리드 화면. 대시보드/단일
  * 미리보기 페이지와는 별개의 독립 라우트(/#/documents)다.
  *
- * 컬럼: 구분(제목) / 파일첨부(첨부 시 썸네일로 바뀌고, 마우스오버하면 미리보기/다운로드/삭제) / 파일명 / 등록자 / 등록일시 / 관리
+ * 컬럼: 구분(제목) / 파일첨부(첨부 시 썸네일로 바뀌고, 마우스오버하면 미리보기/다운로드/삭제) / 파일명 / 등록자 / 등록일시 / 기준년월 / 관리
+ *
+ * [등록일시 vs 기준년월]
+ * 등록일시는 파일을 첨부한 시점에 자동으로 찍히는 타임스탬프로 수정할 수 없다.
+ * 기준년월은 그와 별개로, 사용자가 이 문서가 어느 년-월 자료인지 직접 골라서 저장하는
+ * 값이다(ReferenceMonthCell). 등록은 오늘 했어도 내용은 지난달 자료일 수 있는 식의
+ * 경우를 위한 필드.
  *
  * [행 상태(status) 흐름]
  * 'new'(추가만 하고 아직 저장 안 함) -> 저장 -> 'saved'(서버에 반영됨)
- * 'saved' 행을 수정(제목/등록자/파일/숨기기)하면 'dirty'로 바뀐다.
+ * 'saved' 행을 수정(제목/파일/기준년월/숨기기)하면 'dirty'로 바뀐다.
  * 상단 "저장" 버튼을 누르면 new/dirty 상태인 행만 모아서 서버에 반영한다
  * (new는 생성, dirty는 변경) - 이게 곧 등록/변경 기능이다. 삭제는 되돌릴 필요가
  * 거의 없는 액션이라 '관리' 컬럼(RowActionsCell)에서 즉시 서버에 반영한다.
@@ -80,11 +77,12 @@
  * '저장'은 gridApi.forEachNode로 현재 그리드의 모든 행을 순회해서 처리하므로,
  * rowData를 별도로 동기화해서 들고 있을 필요가 없다.
  */
-import { ref, shallowRef, onMounted, watch } from 'vue'
+import { ref, shallowRef, onMounted } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { message } from 'ant-design-vue'
 import BaseCard from '../atoms/BaseCard.vue'
 import FileAttachCell from '../atoms/FileAttachCell.vue'
+import ReferenceMonthCell from '../atoms/ReferenceMonthCell.vue'
 import RowActionsCell from '../atoms/RowActionsCell.vue'
 import TitleCell from '../atoms/TitleCell.vue'
 import DocumentSlideViewerModal from '../organisms/DocumentSlideViewerModal.vue'
@@ -117,6 +115,7 @@ function createEmptyRow() {
     fileBuffer: null, // 아직 서버에 안 올라간 첨부 파일. 저장되면 비운다(메모리 절약).
     registrant: getCurrentUserId(), // 직접 입력이 아니라 로그인 세션의 사용자 아이디로 자동 채운다.
     registeredAt: null,
+    referenceMonth: null, // 사용자가 직접 고르는 기준년월("YYYY-MM" 문자열). 등록일시와 별개.
     hidden: false,
     status: 'new', // 'new' | 'saved' | 'dirty'
   }
@@ -131,31 +130,6 @@ function onGridReady(event) {
   gridApi.value = event.api
 }
 
-// 년-월 선택 필터. antd의 <a-date-picker picker="month">는 값이 dayjs 객체(또는 선택 안
-// 하면 null)로 온다 - applyTransaction으로 행이 추가/삭제되는 이 그리드는 rowData를
-// 실시간으로 동기화하지 않으므로(위 JSDoc 참고), rowData를 다시 필터링해서 만드는 방식
-// 대신 ag-Grid의 외부 필터 API(isExternalFilterPresent/doesExternalFilterPass)를 쓴다 -
-// 이건 그리드가 이미 들고 있는 실제 행 집합을 대상으로 동작해서 add/remove와 무관하게
-// 항상 정확하다.
-const selectedMonth = ref(null)
-
-watch(selectedMonth, () => {
-  gridApi.value?.onFilterChanged()
-})
-
-function isExternalFilterPresent() {
-  return selectedMonth.value != null
-}
-
-function doesExternalFilterPass(node) {
-  const row = node.data
-  // 아직 저장 전(등록일시가 없거나, status가 new인) 행은 필터와 상관없이 항상 보여준다 -
-  // 방금 추가했는데 선택된 월과 안 맞는다고 화면에서 사라지면 혼란스럽다.
-  if (row.status === 'new' || !row.registeredAt) return true
-  const target = selectedMonth.value
-  return row.registeredAt.getFullYear() === target.year() && row.registeredAt.getMonth() === target.month()
-}
-
 onMounted(async () => {
   try {
     const docs = await listDocuments()
@@ -168,6 +142,7 @@ onMounted(async () => {
         fileBuffer: null,
         registrant: d.registrant ?? '',
         registeredAt: d.registeredAt ? new Date(d.registeredAt) : null,
+        referenceMonth: d.referenceMonth ?? null,
         hidden: !!d.hidden,
         status: 'saved',
       }))
@@ -217,6 +192,7 @@ async function saveAll() {
         hidden: row.hidden,
         fileName: row.fileName,
         fileType: row.fileType,
+        referenceMonth: row.referenceMonth,
       }
       if (row.fileBuffer) {
         payload.fileBase64 = await arrayBufferToBase64(row.fileBuffer.slice(0))
@@ -287,6 +263,14 @@ const columnDefs = [
     flex: 1.3,
     minWidth: 150,
     valueFormatter: (params) => (params.value ? dateTimeFormatter.format(params.value) : ''),
+  },
+  {
+    headerName: '기준년월',
+    field: 'referenceMonth',
+    cellRenderer: ReferenceMonthCell,
+    sortable: false,
+    flex: 1,
+    minWidth: 120,
   },
   {
     headerName: '관리',
