@@ -1,7 +1,7 @@
 <template>
   <span style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%">
-    <a-upload v-if="!hasFile" :show-upload-list="false" accept=".pptx,.pdf,.ppt" :before-upload="handleBeforeUpload">
-      <a-button size="small">파일선택</a-button>
+    <a-upload v-if="!hasFile" :show-upload-list="false" :disabled="isHidden" accept=".pptx,.pdf,.ppt" :before-upload="handleBeforeUpload">
+      <a-button size="small" :disabled="isHidden">파일선택</a-button>
     </a-upload>
 
     <div
@@ -21,13 +21,13 @@
 
       <div :style="overlayStyle">
         <a-tooltip title="미리보기">
-          <a-button size="small" shape="circle" @click.stop="openPreview">👁</a-button>
+          <a-button size="small" shape="circle" :disabled="isHidden" @click.stop="openPreview">👁</a-button>
         </a-tooltip>
         <a-tooltip title="다운로드">
-          <a-button size="small" shape="circle" @click.stop="download">⬇</a-button>
+          <a-button size="small" shape="circle" :disabled="isHidden" @click.stop="download">⬇</a-button>
         </a-tooltip>
         <a-tooltip title="초기화">
-          <a-button size="small" shape="circle" danger @click.stop="resetFile">✕</a-button>
+          <a-button size="small" shape="circle" danger :disabled="isHidden" @click.stop="resetFile">✕</a-button>
         </a-tooltip>
       </div>
     </div>
@@ -198,6 +198,7 @@ const pptThumbImage = ref('')
 let pptxThumbViewer = null
 
 const hasFile = computed(() => !!props.params.data.fileName)
+const isHidden = computed(() => !!props.params.data.hidden)
 const fileType = computed(() => props.params.data.fileType)
 const isLoadingThumb = ref(false)
 const thumbLoadFailed = ref(false)

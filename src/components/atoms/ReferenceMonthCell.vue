@@ -6,6 +6,7 @@
       size="small"
       placeholder="년-월"
       allow-clear
+      :disabled="params.data.hidden"
       style="width: 100%"
       @change="onChange"
     />

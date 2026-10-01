@@ -221,7 +221,7 @@ const columnDefs = [
   {
     headerName: '구분',
     field: 'title',
-    editable: true,
+    editable: (params) => !params.data.hidden,
     flex: 1.6,
     minWidth: 220,
     cellRenderer: TitleCell,
