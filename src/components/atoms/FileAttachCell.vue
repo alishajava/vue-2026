@@ -212,9 +212,20 @@ function cleanupThumb() {
   pptThumbImage.value = ''
 }
 
+// row.fileBuffer가 첨부 직후 -> 저장 시 null로 또 바뀌는 식으로 짧은 시간 안에 두 번
+// 바뀌면(예: 첨부 렌더링이 아직 pptx-preview.preview()를 기다리는 중에 저장이 눌려서
+// fileBuffer가 null이 됨) watch가 renderThumbnail을 다시 호출해서 두 실행이 겹친다.
+// 먼저 시작된(느린) 실행이 나중에 끝나면서 그 사이 더 최신 실행이 이미 정리해둔
+// thumbContainer에 자기가 만든 pptx-preview 인스턴스(제거 전의 원형 버튼/페이지 표시
+// 포함)를 다시 그려 넣는 게 "분명히 지웠는데도 다시 보인다"는 문제의 원인이었다.
+// 호출마다 고유 토큰을 매기고, DOM을 건드리기 직전마다 자신이 여전히 최신 실행인지
+// 확인해서 아니면 조용히 중단한다.
+let renderSeq = 0
+
 // 렌더링을 시작하는 시점의 row.id를 기억해서, 서버 응답이 늦게 도착했을 때 그 사이
 // 다른 파일로 다시 첨부되었거나 행이 삭제된 경우 결과를 버리기 위한 용도.
 async function renderThumbnail() {
+  const myRenderSeq = ++renderSeq
   cleanupThumb()
   thumbLoadFailed.value = false
   const row = props.params.data
@@ -264,9 +275,11 @@ async function renderThumbnail() {
     pdfThumbSource.value = buffer.slice(0)
   } else if (row.fileType === 'pptx') {
     await nextTick()
+    if (myRenderSeq !== renderSeq) return // 기다리는 사이 더 최신 렌더링이 시작됐으면 중단
     if (!thumbContainer.value) return
     try {
       const { init: initPptxPreview } = await import('pptx-preview')
+      if (myRenderSeq !== renderSeq) return
       // height를 안 넘기면 pptx-preview가 실제 슬라이드 비율대로 자기 높이를 계산해버려서,
       // 92x52 박스랑 비율이 다른 슬라이드(예: 4:3)는 박스를 벗어나거나(overflow:hidden에
       // 잘림) 반대로 작게 나왔다(실제 재현 확인: 92x69로 계산돼 52px 박스에서 아래쪽이
@@ -277,7 +290,13 @@ async function renderThumbnail() {
       // pptx-preview가 구분 없이 그려버리는 것)를 썸네일에서도 먼저 잘라낸다 - 안 그러면
       // 전체 슬라이드를 그대로 축소한 썸네일 모서리에 작게 슬라이드 번호가 딸려 보인다.
       const cleanedBuffer = await stripFooterPlaceholders(buffer)
+      if (myRenderSeq !== renderSeq) return
       await pptxThumbViewer.preview(cleanedBuffer.slice(0))
+      // preview()가 끝나기를 기다리는 사이 더 최신 렌더링이 시작돼 thumbContainer를 이미
+      // cleanupThumb()로 비웠을 수 있다 - 그런데도 계속 진행하면 자신이 막 그린(제거
+      // 전의) pptx-preview 결과를 그 뒤에 다시 끼워 넣게 된다("분명히 지웠는데도
+      // 모서리 버튼/페이지 표시가 다시 보인다"는 문제의 원인). 여기서 다시 확인한다.
+      if (myRenderSeq !== renderSeq) return
       // pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음 버튼 +
       // 페이지 표시(DocumentSlideViewerModal의 stripBuiltInNav와 동일한 것)를 여기서도
       // 지워야 한다 - 92x52의 작은 썸네일 박스엔 안 맞는 크기라 모서리에 잘린 조각만
