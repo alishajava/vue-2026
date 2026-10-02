@@ -388,3 +388,17 @@ function resetFile() {
   })
 }
 </script>
+
+<style>
+/* scoped를 안 썼다 - ag-Grid cellRenderer는 메인 앱 트리 밖에서 별도로 마운트되어
+   data-v-* 속성이 안 붙으므로(파일 상단 설명 참고) scoped CSS는 여기서 아예 적용되지
+   않는다. 반대로 scoped 없이 쓰면 일반 전역 CSS와 똑같이 번들되어 적용되므로, 공용
+   global.css를 안 건드리고도 이 파일 안에서 끝낼 수 있다.
+   pptx-preview가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음 버튼 + 페이지
+   표시(1/3 등) - 렌더링 직후 .remove()로도 지우고 있지만, 그걸로 안 지워지는 환경이
+   있어서 CSS로도 이중 차단한다. 클래스만 있으면 언제 어디서 그려지든 항상 숨는다. */
+.pptx-preview-wrapper-next,
+.pptx-preview-wrapper-pagination {
+  display: none !important;
+}
+</style>
