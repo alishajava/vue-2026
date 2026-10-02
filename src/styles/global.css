@@ -8,3 +8,14 @@ body {
   color: #0b0b0b;
   font-family: system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
 }
+
+/* pptx-preview 라이브러리가 'slide' 모드에서 자체적으로 그려 넣는 원형 이전/다음
+   버튼 + 페이지 표시(1/3 등) - 이 앱에서는 FileAttachCell 썸네일과
+   DocumentSlideViewerModal 본문 미리보기 둘 다 자체 네비게이션(SlideNavArrows 등)을
+   따로 그려 쓰므로 어느 쪽에서도 필요 없다. JS로 렌더링 직후 .remove()하고 있지만,
+   렌더링 타이밍에 따라 지우기 전에 한 프레임 보이거나(깜빡임) 드물게 제거가 씹히는
+   경우를 CSS로 원천 차단한다 - 클래스만 있으면 언제 어디서 그려지든 항상 숨는다. */
+.pptx-preview-wrapper-next,
+.pptx-preview-wrapper-pagination {
+  display: none !important;
+}
