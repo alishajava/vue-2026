@@ -219,16 +219,20 @@
  * 연결한다. 좌측 목록/점 인디케이터/이 버튼/↑↓ 방향키가 전부 goToDot·goToSlide 하나로
  * 통일되어 항상 같이 갱신된다.
  */
-import { ref, shallowRef, computed, nextTick, watch, onBeforeUnmount } from 'vue'
-import { init as initPptxPreview } from 'pptx-preview'
-import JSZip from 'jszip'
-import VuePdfEmbed from 'vue-pdf-embed'
+import { ref, shallowRef, computed, nextTick, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import SlideDotsIndicator from '../atoms/SlideDotsIndicator.vue'
 import SlideNavArrows from '../atoms/SlideNavArrows.vue'
 import { PPTX_USE_SERVER_CONVERSION } from '../../config/documentPreview'
 import { stripFooterPlaceholders } from '../../utils/pptxCleanup'
+
+// jszip/pptx-preview/vue-pdf-embed는 정적 import 대신 실제로 쓰는 시점에만 동적으로
+// 불러온다 - 빌드 환경에 따라 node_modules를 묶는 manualChunks 설정이 있을 때, 이
+// 라이브러리들이 다른 벤더 청크(예: 차트 라이브러리 청크)와 정적 의존성 그래프에
+// 얽혀서 청크 간 순환참조(TDZ 에러)를 일으킬 수 있다 - 동적 import는 별도의
+// 지연 로딩 청크로 빠지므로 그 그래프 자체에서 제외된다.
+const VuePdfEmbed = defineAsyncComponent(() => import('vue-pdf-embed'))
 
 const props = defineProps({
   open: {
@@ -366,6 +370,7 @@ watch(
 
 async function getSlideAspectRatio(buffer) {
   try {
+    const { default: JSZip } = await import('jszip')
     const zip = await JSZip.loadAsync(buffer.slice(0))
     const presFile = zip.file('ppt/presentation.xml')
     if (!presFile) return null
@@ -518,6 +523,7 @@ function pptxNext() {
 async function initPptxMain() {
   if (!listContainer.value || !previewContainer.value || !props.fileBuffer) return
 
+  const { init: initPptxPreview } = await import('pptx-preview')
   slideAspectRatio.value = (await getSlideAspectRatio(props.fileBuffer)) || 16 / 9
   cleanedFileBuffer = await stripFooterPlaceholders(props.fileBuffer)
 
@@ -623,6 +629,7 @@ async function openEnlarge() {
     // SlideNavArrows(Vue가 렌더링)도 같이 들어있다. innerHTML=''로 지우면 그 버튼도
     // 같이 사라진다 - 이 모달은 destroy-on-close라 열릴 때마다 어차피 컨테이너가
     // 새로 만들어지므로 지울 필요 자체가 없다.
+    const { init: initPptxPreview } = await import('pptx-preview')
     enlargeViewer = initPptxPreview(enlargeContainer.value, { ...enlargeSize.value, mode: 'slide' })
     await enlargeViewer.preview((cleanedFileBuffer || props.fileBuffer).slice(0))
     stripBuiltInNav(enlargeContainer.value)

@@ -70,13 +70,15 @@
  * 바뀔 때마다 scale 비율만 다시 계산한다 - 렌더링을 다시 하지 않아도 되니 리사이즈
  * 중에도 가볍다.
  */
-import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { Modal, message } from 'ant-design-vue'
-import { init as initPptxPreview } from 'pptx-preview'
-import VuePdfEmbed from 'vue-pdf-embed'
 import { clearDocumentFile, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 import { stripFooterPlaceholders } from '../../utils/pptxCleanup'
+
+// pptx-preview/vue-pdf-embed는 DocumentSlideViewerModal과 동일한 이유로 정적 import
+// 대신 실제로 쓰는 시점에 동적으로 불러온다(청크 순환참조 회피).
+const VuePdfEmbed = defineAsyncComponent(() => import('vue-pdf-embed'))
 
 const props = defineProps({
   params: {
@@ -264,6 +266,7 @@ async function renderThumbnail() {
     await nextTick()
     if (!thumbContainer.value) return
     try {
+      const { init: initPptxPreview } = await import('pptx-preview')
       // height를 안 넘기면 pptx-preview가 실제 슬라이드 비율대로 자기 높이를 계산해버려서,
       // 92x52 박스랑 비율이 다른 슬라이드(예: 4:3)는 박스를 벗어나거나(overflow:hidden에
       // 잘림) 반대로 작게 나왔다(실제 재현 확인: 92x69로 계산돼 52px 박스에서 아래쪽이

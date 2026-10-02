@@ -1,5 +1,3 @@
-import JSZip from 'jszip'
-
 /**
  * 파워포인트는 "머리글/바닥글 삽입"을 켜지 않는 한 날짜(dt)/바닥글(ftr)/슬라이드번호
  * (sldNum) 자리표시자를 화면에 그리지 않는다(값은 XML에 남아있을 뿐). 그런데
@@ -11,6 +9,7 @@ import JSZip from 'jszip'
  */
 export async function stripFooterPlaceholders(buffer) {
   try {
+    const { default: JSZip } = await import('jszip')
     const zip = await JSZip.loadAsync(buffer.slice(0))
     const slideFiles = Object.keys(zip.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
     for (const path of slideFiles) {

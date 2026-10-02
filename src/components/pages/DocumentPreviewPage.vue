@@ -13,14 +13,19 @@
  *   SmartArt, 임베드 영상 등 복잡한 요소는 실제 파워포인트와 다르게 보이거나
  *   생략될 수 있다 - "정확한" 렌더링이 필요하면 서버 변환(LibreOffice 등)이 필요하다.
  */
-import { ref, shallowRef, nextTick, onBeforeUnmount } from 'vue'
-import { init as initPptxPreview } from 'pptx-preview'
-import VuePdfEmbed from 'vue-pdf-embed'
+import { ref, shallowRef, nextTick, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import BaseCard from '../atoms/BaseCard.vue'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 import { saveDocument, fetchDocument } from '../../api/documentApi'
+
+// pptx-preview/vue-pdf-embed는 정적 import 대신 실제로 쓰는 시점에 동적으로 불러온다
+// (DocumentSlideViewerModal.vue/FileAttachCell.vue와 동일한 이유 - 청크 순환참조 회피).
+// 이 앱 안에서 이 라이브러리를 쓰는 곳 전부를 동적 import로 바꿔야 효과가 있다 - 단
+// 한 곳이라도 정적 import가 남아있으면 번들러가 그 라이브러리를 그 정적 import가
+// 속한 청크에 그대로 묶어버려서, 다른 곳의 동적 import는 별도 청크로 안 빠진다.
+const VuePdfEmbed = defineAsyncComponent(() => import('vue-pdf-embed'))
 
 const PREVIEW_SIZE = { width: 480, height: 270 }
 const MODAL_SIZE = { width: 900, height: 506 }
@@ -150,6 +155,7 @@ async function loadDocumentById() {
 async function renderPptxPreview() {
   if (!previewContainer.value || !pptxArrayBuffer.value) return
   try {
+    const { init: initPptxPreview } = await import('pptx-preview')
     previewViewer?.destroy()
     previewContainer.value.innerHTML = ''
     previewViewer = initPptxPreview(previewContainer.value, { ...PREVIEW_SIZE, mode: 'slide' })
@@ -171,6 +177,7 @@ async function openModal() {
   await nextTick()
   if (!modalContainer.value || !pptxArrayBuffer.value) return
   try {
+    const { init: initPptxPreview } = await import('pptx-preview')
     modalViewer?.destroy()
     modalContainer.value.innerHTML = ''
     modalViewer = initPptxPreview(modalContainer.value, { ...MODAL_SIZE, mode: 'slide' })
