@@ -271,7 +271,7 @@ async function renderThumbnail() {
       // 92x52 박스랑 비율이 다른 슬라이드(예: 4:3)는 박스를 벗어나거나(overflow:hidden에
       // 잘림) 반대로 작게 나왔다(실제 재현 확인: 92x69로 계산돼 52px 박스에서 아래쪽이
       // 잘림). width/height를 둘 다 박스 크기로 넘기면 라이브러리가 그 안에서 실제 비율에
-      // 맞춰 가운데 정렬(letterbox)해주므로, 어떤 비율의 슬라이드든 박스를 벗어나지 않는다.
+      // 맞춰 가운데 정렬(letterbox)해준다.
       pptxThumbViewer = initPptxPreview(thumbContainer.value, { width: THUMB_WIDTH, height: THUMB_HEIGHT, mode: 'slide' })
       // 날짜/바닥글/슬라이드번호 자리표시자(DocumentSlideViewerModal과 동일한 이유로
       // pptx-preview가 구분 없이 그려버리는 것)를 썸네일에서도 먼저 잘라낸다 - 안 그러면
@@ -283,6 +283,14 @@ async function renderThumbnail() {
       // 지워야 한다 - 92x52의 작은 썸네일 박스엔 안 맞는 크기라 모서리에 잘린 조각만
       // 보이는 원인이었다. 썸네일은 클릭해서 넘기는 기능 자체가 없으니 그냥 없애면 된다.
       thumbContainer.value.querySelectorAll('.pptx-preview-wrapper-next, .pptx-preview-wrapper-pagination').forEach((el) => el.remove())
+      // 라이브러리가 .pptx-preview-wrapper 자체에 overflow-y:auto를 직접 박아 넣는다 -
+      // 슬라이드 비율이 92x52(16:9)와 다르면(예: 4:3) "가운데 정렬"만 해줄 뿐 실제
+      // 잘라내지는 않아서, 박스보다 큰 내용이 스크롤 가능한 상태로 남는다(실제 재현
+      // 확인: 4:3 파일에서 scrollHeight 61 vs clientHeight 52, 썸네일에 스크롤바가
+      // 생기고 기본 스크롤 위치에 따라 엉뚱한 부분이 잘려 보였다). 썸네일은 스크롤해서
+      // 볼 용도가 아니므로 강제로 overflow:hidden을 덮어써서 완전히 잘라낸다.
+      const pptxWrapper = thumbContainer.value.querySelector('.pptx-preview-wrapper')
+      if (pptxWrapper) pptxWrapper.style.overflow = 'hidden'
     } catch (err) {
       console.error('pptx 썸네일 렌더링 실패', err)
       thumbLoadFailed.value = true
