@@ -71,10 +71,11 @@
  * 중에도 가볍다.
  */
 import { ref, shallowRef, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from 'vue'
-import { Modal, message } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { clearDocumentFile, fetchDocumentFile, convertToSlides, fetchDocumentSlides } from '../../api/documentApi'
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../../utils/base64'
 import { stripFooterPlaceholders } from '../../utils/pptxCleanup'
+import { applyOverflowAutofit } from '../../utils/pptxAutofit'
 
 // pptx-preview/vue-pdf-embed는 DocumentSlideViewerModal과 동일한 이유로 정적 import
 // 대신 실제로 쓰는 시점에 동적으로 불러온다(청크 순환참조 회피).
@@ -316,6 +317,7 @@ async function renderThumbnail() {
       // 볼 용도가 아니므로 강제로 overflow:hidden을 덮어써서 완전히 잘라낸다.
       const pptxWrapper = thumbContainer.value.querySelector('.pptx-preview-wrapper')
       if (pptxWrapper) pptxWrapper.style.overflow = 'hidden'
+      applyOverflowAutofit(thumbContainer.value)
     } catch (err) {
       console.error('pptx 썸네일 렌더링 실패', err)
       thumbLoadFailed.value = true
@@ -361,31 +363,25 @@ async function download() {
 // 되돌린다. 이미 서버에 저장된 행(id가 있는 행)이면 즉시 서버에도 반영한다 -
 // RowActionsCell의 삭제와 같은 이유로, 되돌릴 필요가 거의 없는 동작이라 '저장'
 // 버튼을 거치지 않고 바로 확정한다.
-function resetFile() {
+async function resetFile() {
   const row = props.params.data
-  Modal.confirm({
-    title: '첨부파일을 초기화하시겠습니까?',
-    content: row.fileName ? `"${row.fileName}" 파일을 제거합니다.` : '첨부된 파일을 제거합니다.',
-    okText: '초기화',
-    okType: 'danger',
-    cancelText: '취소',
-    onOk: async () => {
-      row.fileName = null
-      row.fileType = null
-      row.fileBuffer = null
-      row.registeredAt = null
-      props.params.api.applyTransaction({ update: [row] })
-      props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['attach'], force: true })
-      if (row.id) {
-        try {
-          await clearDocumentFile(row.id)
-        } catch (err) {
-          message.error('서버에서 첨부파일을 지우지 못했습니다.')
-          console.error(err)
-        }
-      }
-    },
-  })
+  const detail = row.fileName ? `"${row.fileName}" 파일을 제거합니다.` : '첨부된 파일을 제거합니다.'
+  if (!confirm(`첨부파일을 초기화하시겠습니까?\n\n${detail}`)) return
+
+  row.fileName = null
+  row.fileType = null
+  row.fileBuffer = null
+  row.registeredAt = null
+  props.params.api.applyTransaction({ update: [row] })
+  props.params.api.refreshCells({ rowNodes: [props.params.node], columns: ['attach'], force: true })
+  if (row.id) {
+    try {
+      await clearDocumentFile(row.id)
+    } catch (err) {
+      message.error('서버에서 첨부파일을 지우지 못했습니다.')
+      console.error(err)
+    }
+  }
 }
 </script>
 

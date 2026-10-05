@@ -16,7 +16,7 @@
  *   서버에도 바로 삭제 요청을 보낸다 - '저장' 버튼을 눌러야 반영되는 등록/변경과
  *   달리, 삭제는 되돌릴 필요가 거의 없어 즉시 확정한다.
  */
-import { Modal, message } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { deleteDocument } from '../../api/documentApi'
 
 const props = defineProps({
@@ -41,26 +41,20 @@ function toggleHidden() {
   props.params.api.refreshCells({ columns: ['title'], force: true })
 }
 
-function deleteRow() {
+async function deleteRow() {
   const row = props.params.data
-  Modal.confirm({
-    title: '삭제하시겠습니까?',
-    content: row.title ? `"${row.title}" 항목을 삭제합니다.` : '이 항목을 삭제합니다.',
-    okText: '삭제',
-    okType: 'danger',
-    cancelText: '취소',
-    onOk: async () => {
-      props.params.api.applyTransaction({ remove: [row] })
-      props.params.api.refreshCells({ columns: ['title'], force: true })
-      if (row.id) {
-        try {
-          await deleteDocument(row.id)
-        } catch (err) {
-          message.error('서버에서 삭제하지 못했습니다.')
-          console.error(err)
-        }
-      }
-    },
-  })
+  const detail = row.title ? `"${row.title}" 항목을 삭제합니다.` : '이 항목을 삭제합니다.'
+  if (!confirm(`삭제하시겠습니까?\n\n${detail}`)) return
+
+  props.params.api.applyTransaction({ remove: [row] })
+  props.params.api.refreshCells({ columns: ['title'], force: true })
+  if (row.id) {
+    try {
+      await deleteDocument(row.id)
+    } catch (err) {
+      message.error('서버에서 삭제하지 못했습니다.')
+      console.error(err)
+    }
+  }
 }
 </script>
