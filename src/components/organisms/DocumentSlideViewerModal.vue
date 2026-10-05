@@ -225,6 +225,7 @@ import 'vue-pdf-embed/dist/styles/textLayer.css'
 import SlideDotsIndicator from '../atoms/SlideDotsIndicator.vue'
 import SlideNavArrows from '../atoms/SlideNavArrows.vue'
 import { PPTX_USE_SERVER_CONVERSION } from '../../config/documentPreview'
+import { applyOverflowAutofit } from '../../utils/pptxAutofit'
 import { stripFooterPlaceholders } from '../../utils/pptxCleanup'
 
 // jszip/pptx-preview/vue-pdf-embed는 정적 import 대신 실제로 쓰는 시점에만 동적으로
@@ -541,6 +542,7 @@ async function initPptxMain() {
     // 각 슬라이드 div의 하단 10px margin 틈새로 이 검정 배경이 비쳐서 슬라이드마다
     // 밑에 검은 줄이 생긴 것처럼 보였다 - wrapper 배경을 투명하게 덮어써서 없앤다.
     listViewer.wrapper.style.background = 'transparent'
+    applyOverflowAutofit(listContainer.value)
     attachThumbnailClicks()
     listOk = true
   } catch (err) {
@@ -552,6 +554,7 @@ async function initPptxMain() {
     previewViewer = initPptxPreview(previewContainer.value, { ...previewSize.value, mode: 'slide' })
     await previewViewer.preview((cleanedFileBuffer || props.fileBuffer).slice(0))
     stripBuiltInNav(previewContainer.value)
+    applyOverflowAutofit(previewContainer.value)
     pptxSlideCount.value = previewViewer.slideCount
     pptxCurrentIndex.value = 0
     if (listOk) highlightThumbnail(0)
@@ -602,9 +605,11 @@ function goToSlide(index) {
   pptxCurrentIndex.value = index
   if (previewViewer) {
     previewViewer.renderSingleSlide(index)
+    applyOverflowAutofit(previewContainer.value)
   }
   if (enlargeViewer) {
     enlargeViewer.renderSingleSlide(index)
+    applyOverflowAutofit(enlargeContainer.value)
   }
   highlightThumbnail(index)
 }
@@ -637,6 +642,7 @@ async function openEnlarge() {
     if (idx > 0) {
       enlargeViewer.renderSingleSlide(idx)
     }
+    applyOverflowAutofit(enlargeContainer.value)
   } catch (err) {
     loadError.value = '파일을 읽는 데 실패했습니다. 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.'
     console.error(err)
