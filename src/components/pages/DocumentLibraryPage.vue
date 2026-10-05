@@ -423,6 +423,12 @@ const gridContext = { openPreview }
   --ag-header-column-resize-handle-display: none;
   --ag-row-hover-color: #f3f2ee;
   --ag-header-background-color: #e6f4ff;
+  /* ag-theme-alpine 기본 CSS는 --ag-panel-background-color/--ag-menu-background-color를
+     --ag-header-background-color 값을 그대로 물려받게 정의해뒀다(컬럼 메뉴 팝업, 필터
+     패널 등에 쓰임) - 헤더색만 바꿀 생각이었는데 그것들도 같이 파란색이 돼버려서,
+     원래 테마 기본값(#f8f8f8)으로 따로 고정해 헤더에만 색이 적용되게 한다. */
+  --ag-panel-background-color: #f8f8f8;
+  --ag-menu-background-color: #f8f8f8;
 }
 /*
  * ag-theme-alpine의 .ag-cell은 기본이 display:inline-block이라 텍스트는 줄간격으로
